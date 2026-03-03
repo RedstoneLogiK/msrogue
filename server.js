@@ -6414,6 +6414,7 @@ this.MPServerImpl = class MPServerImpl {
       this.server = new WebSocket.Server({
         port: server_port
       });
+      this.interface.status = "running";
       return this.server.on("connection", (socket, request) => {
         return this.clientConnected(socket);
       });
