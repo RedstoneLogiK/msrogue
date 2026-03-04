@@ -41,6 +41,7 @@ rogue = object
 end
 
 coins = []
+pending_removal = []
 explosions = []
 score = 0
 lives = 3
@@ -95,11 +96,12 @@ create_explosion = function(new_x, new_y)
 end
 
 init = function()
-  connection = new ServerConnection("ws://localhost:3000")
+  connection = new ServerConnection("wss://game.redstonelogik.de")
   myID = "none"
   rogue.x = 0
   rogue.y = 0
   coins = []
+  pending_removal = []
   explosions = []
   username = ""
   online_players = []
@@ -204,7 +206,29 @@ update = function()
         end
       end
 
-      coins = message.coins
+      local new_coins = []
+      local sc = 0
+      for sc in message.coins
+        local skip = false
+        local pri = 0
+        for pri in pending_removal
+          if pri == sc.id then skip = true end
+        end
+        if not skip then new_coins.push(sc) end
+      end
+      coins = new_coins
+      // Pending-IDs entfernen, die der Server nicht mehr kennt
+      local still_pending = []
+      local pid = 0
+      for pid in pending_removal
+        local still_there = false
+        local sc2 = 0
+        for sc2 in message.coins
+          if sc2.id == pid then still_there = true end
+        end
+        if still_there then still_pending.push(pid) end
+      end
+      pending_removal = still_pending
 
     elsif message.mtype == "bomb" then
       create_explosion(message.bx, message.bomb_by)
@@ -218,7 +242,6 @@ update = function()
             audio.playSound("coin")
             save_game()
           else
-            storage.set("rogue_save_data", 0)
             game_state = "gameover"
           end
         end
@@ -289,8 +312,19 @@ end
 
 update_gameover = function()
   if keyboard.press.SPACE or keyboard.press.ENTER then
-    storage.set("rogue_save_data", 0)
-    init()
+    score = 0
+    lives = 3
+    speed_level = 1
+    value_multiplier = 1
+    rogue.speed = 2.5
+    cost_speed = 10
+    cost_value = 15
+    godmode = 0
+    godmode_timer = 0
+    totems = 0
+    pending_removal = []
+    save_game()
+    game_state = "play"
   end
 end
 
@@ -352,12 +386,20 @@ update_game = function()
     if c != 0 then
       local dist = sqrt((rogue.x - c.x)^2 + (rogue.y - c.y)^2)
 
-      if c.item_type == "bomb" and dist < 45 then
+      local pending = false
+      local pri2 = 0
+      for pri2 in pending_removal
+        if pri2 == c.id then pending = true end
+      end
+
+      if not pending and c.item_type == "bomb" and dist < 45 then
+        pending_removal.push(c.id)
         connection.send(object mtype="bomb_hit" coin_id=c.id bx=c.x bomb_by=c.y victim=username end)
         coins.removeAt(i)
         i = i - 1
 
-      elsif c.item_type == "coin" and dist < 30 then
+      elsif not pending and c.item_type == "coin" and dist < 30 then
+        pending_removal.push(c.id)
         connection.send(object mtype="collect" coin_id=c.id value_multiplier=value_multiplier end)
         coins.removeAt(i)
         i = i - 1
