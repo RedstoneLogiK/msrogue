@@ -343,13 +343,21 @@ update_login = function()
     end
   end
 
-  if keyboard.press.ENTER and username.length > 0 and auth_password.length > 0 then
-    if auth_mode == "login" then
-      connection.send(object mtype="login" name=username password=auth_password end)
+  if keyboard.press.ENTER then
+    if username.length == 0 then
+      auth_error = "Bitte Name eingeben"
+      auth_field = "user"
+    elsif auth_password.length == 0 then
+      auth_error = "Bitte Passwort eingeben"
+      auth_field = "pass"
     else
-      connection.send(object mtype="register" name=username password=auth_password end)
+      if auth_mode == "login" then
+        connection.send(object mtype="login" name=username password=auth_password end)
+      else
+        connection.send(object mtype="register" name=username password=auth_password end)
+      end
+      auth_error = "Verbinde..."
     end
-    auth_error = ""
   end
 
   // Modus umschalten mit Shift
