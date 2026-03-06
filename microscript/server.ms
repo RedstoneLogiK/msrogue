@@ -75,6 +75,8 @@ save_player_to_db = function(pid)
     data.godmode = p.godmode
     data.godmode_timer = p.godmode_timer
     data.totems = p.totems
+    data.pos_x = p.x
+    data.pos_y = p.y
     db_save_player(p.name, data)
   end
 end
@@ -92,6 +94,8 @@ load_player_from_db = function(pid, username)
     players[pid].godmode = data.godmode
     players[pid].godmode_timer = data.godmode_timer
     players[pid].totems = data.totems
+    players[pid].x = data.pos_x
+    players[pid].y = data.pos_y
   end
 end
 
@@ -109,6 +113,8 @@ send_player_data = function(conn, pid)
     godmode = p.godmode
     godmode_timer = p.godmode_timer
     totems = p.totems
+    pos_x = p.x
+    pos_y = p.y
   end)
 end
 

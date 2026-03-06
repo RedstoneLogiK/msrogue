@@ -66,6 +66,10 @@ apply_player_data = function(msg)
   godmode = msg.godmode
   godmode_timer = msg.godmode_timer
   totems = msg.totems
+  if msg.pos_x != 0 or msg.pos_y != 0 then
+    rogue.x = msg.pos_x
+    rogue.y = msg.pos_y
+  end
 end
 
 init = function()

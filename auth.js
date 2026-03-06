@@ -45,7 +45,9 @@ function init(callback) {
     'lives INT DEFAULT 3, ' +
     'godmode INT DEFAULT 0, ' +
     'godmode_timer INT DEFAULT 0, ' +
-    'totems INT DEFAULT 0' +
+    'totems INT DEFAULT 0, ' +
+    'pos_x FLOAT DEFAULT 0, ' +
+    'pos_y FLOAT DEFAULT 0' +
     ')';
 
   pool.query(createSQL, function(err) {
@@ -59,7 +61,8 @@ function init(callback) {
       'value_multiplier INT DEFAULT 1', 'rogue_speed FLOAT DEFAULT 2.5',
       'cost_speed INT DEFAULT 10', 'cost_value INT DEFAULT 15',
       'lives INT DEFAULT 3', 'godmode INT DEFAULT 0',
-      'godmode_timer INT DEFAULT 0', 'totems INT DEFAULT 0'];
+      'godmode_timer INT DEFAULT 0', 'totems INT DEFAULT 0',
+      'pos_x FLOAT DEFAULT 0', 'pos_y FLOAT DEFAULT 0'];
     var done = 0;
     for (var c = 0; c < cols.length; c++) {
       var colName = cols[c].split(' ')[0];
@@ -95,7 +98,9 @@ function loadAllUsers(callback) {
         lives: r.lives || 3,
         godmode: r.godmode || 0,
         godmode_timer: r.godmode_timer || 0,
-        totems: r.totems || 0
+        totems: r.totems || 0,
+        pos_x: r.pos_x || 0,
+        pos_y: r.pos_y || 0
       };
     }
     console.log('Auth: ' + Object.keys(users).length + ' Accounts geladen');
@@ -127,7 +132,8 @@ function register(username, password) {
     created: Date.now(),
     score: 0, speed_level: 1, value_multiplier: 1, rogue_speed: 2.5,
     cost_speed: 10, cost_value: 15, lives: 3,
-    godmode: 0, godmode_timer: 0, totems: 0
+    godmode: 0, godmode_timer: 0, totems: 0,
+    pos_x: 0, pos_y: 0
   };
 
   pool.query(
@@ -182,7 +188,9 @@ function getPlayerData(username) {
     lives: u.lives || 3,
     godmode: u.godmode || 0,
     godmode_timer: u.godmode_timer || 0,
-    totems: u.totems || 0
+    totems: u.totems || 0,
+    pos_x: u.pos_x || 0,
+    pos_y: u.pos_y || 0
   };
 }
 
@@ -200,14 +208,16 @@ function savePlayerData(username, data) {
   users[key].godmode = data.godmode;
   users[key].godmode_timer = data.godmode_timer;
   users[key].totems = data.totems;
+  users[key].pos_x = data.pos_x || 0;
+  users[key].pos_y = data.pos_y || 0;
 
   pool.query(
     'UPDATE users SET score=?, speed_level=?, value_multiplier=?, rogue_speed=?, ' +
-    'cost_speed=?, cost_value=?, lives=?, godmode=?, godmode_timer=?, totems=? ' +
-    'WHERE username=?',
+    'cost_speed=?, cost_value=?, lives=?, godmode=?, godmode_timer=?, totems=?, ' +
+    'pos_x=?, pos_y=? WHERE username=?',
     [data.score, data.speed_level, data.value_multiplier, data.rogue_speed,
      data.cost_speed, data.cost_value, data.lives, data.godmode,
-     data.godmode_timer, data.totems, key],
+     data.godmode_timer, data.totems, data.pos_x || 0, data.pos_y || 0, key],
     function(err) { if (err) console.error('DB Save Fehler:', err.message); }
   );
 }
