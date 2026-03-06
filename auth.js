@@ -4,6 +4,19 @@ var crypto = require('crypto');
 var pool = null;
 var users = {};
 
+var DEFAULT_STATS = {
+  score: 0,
+  speed_level: 1,
+  value_multiplier: 1,
+  rogue_speed: 2.5,
+  cost_speed: 10,
+  cost_value: 15,
+  lives: 3,
+  godmode: 0,
+  godmode_timer: 0,
+  totems: 0
+};
+
 function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
@@ -18,40 +31,76 @@ function init(callback) {
     connectionLimit: 5
   });
 
-  pool.query(
-    'CREATE TABLE IF NOT EXISTS users (' +
+  var createSQL = 'CREATE TABLE IF NOT EXISTS users (' +
     'username VARCHAR(14) PRIMARY KEY, ' +
     'password VARCHAR(100) NOT NULL, ' +
     'token VARCHAR(64), ' +
-    'created BIGINT' +
-    ')',
-    function(err) {
-      if (err) {
-        console.error('DB Tabelle konnte nicht erstellt werden:', err.message);
-        callback(err);
-        return;
-      }
-      // Alle User in RAM laden
-      pool.query('SELECT * FROM users', function(err, rows) {
-        if (err) {
-          console.error('DB Laden fehlgeschlagen:', err.message);
-          callback(err);
-          return;
-        }
-        users = {};
-        for (var i = 0; i < rows.length; i++) {
-          users[rows[i].username] = {
-            username: rows[i].username,
-            password: rows[i].password,
-            token: rows[i].token,
-            created: rows[i].created
-          };
-        }
-        console.log('Auth: ' + Object.keys(users).length + ' Accounts geladen');
-        callback(null);
+    'created BIGINT, ' +
+    'score INT DEFAULT 0, ' +
+    'speed_level INT DEFAULT 1, ' +
+    'value_multiplier INT DEFAULT 1, ' +
+    'rogue_speed FLOAT DEFAULT 2.5, ' +
+    'cost_speed INT DEFAULT 10, ' +
+    'cost_value INT DEFAULT 15, ' +
+    'lives INT DEFAULT 3, ' +
+    'godmode INT DEFAULT 0, ' +
+    'godmode_timer INT DEFAULT 0, ' +
+    'totems INT DEFAULT 0' +
+    ')';
+
+  pool.query(createSQL, function(err) {
+    if (err) {
+      console.error('DB Tabelle konnte nicht erstellt werden:', err.message);
+      callback(err);
+      return;
+    }
+    // Spalten nachtraeglich hinzufuegen falls Tabelle schon existiert
+    var cols = ['score INT DEFAULT 0', 'speed_level INT DEFAULT 1',
+      'value_multiplier INT DEFAULT 1', 'rogue_speed FLOAT DEFAULT 2.5',
+      'cost_speed INT DEFAULT 10', 'cost_value INT DEFAULT 15',
+      'lives INT DEFAULT 3', 'godmode INT DEFAULT 0',
+      'godmode_timer INT DEFAULT 0', 'totems INT DEFAULT 0'];
+    var done = 0;
+    for (var c = 0; c < cols.length; c++) {
+      var colName = cols[c].split(' ')[0];
+      pool.query('ALTER TABLE users ADD COLUMN ' + cols[c], function(e) {
+        done++;
+        if (done === cols.length) loadAllUsers(callback);
       });
     }
-  );
+  });
+}
+
+function loadAllUsers(callback) {
+  pool.query('SELECT * FROM users', function(err, rows) {
+    if (err) {
+      console.error('DB Laden fehlgeschlagen:', err.message);
+      callback(err);
+      return;
+    }
+    users = {};
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      users[r.username] = {
+        username: r.username,
+        password: r.password,
+        token: r.token,
+        created: r.created,
+        score: r.score || 0,
+        speed_level: r.speed_level || 1,
+        value_multiplier: r.value_multiplier || 1,
+        rogue_speed: r.rogue_speed || 2.5,
+        cost_speed: r.cost_speed || 10,
+        cost_value: r.cost_value || 15,
+        lives: r.lives || 3,
+        godmode: r.godmode || 0,
+        godmode_timer: r.godmode_timer || 0,
+        totems: r.totems || 0
+      };
+    }
+    console.log('Auth: ' + Object.keys(users).length + ' Accounts geladen');
+    callback(null);
+  });
 }
 
 function register(username, password) {
@@ -75,10 +124,12 @@ function register(username, password) {
     username: key,
     password: password,
     token: token,
-    created: Date.now()
+    created: Date.now(),
+    score: 0, speed_level: 1, value_multiplier: 1, rogue_speed: 2.5,
+    cost_speed: 10, cost_value: 15, lives: 3,
+    godmode: 0, godmode_timer: 0, totems: 0
   };
 
-  // Async in DB schreiben
   pool.query(
     'INSERT INTO users (username, password, token, created) VALUES (?, ?, ?, ?)',
     [key, password, token, users[key].created],
@@ -90,7 +141,6 @@ function register(username, password) {
 
 function login(username, password) {
   var key = username.toUpperCase();
-
   if (!users[key]) {
     return { success: false, error: "Benutzer nicht gefunden" };
   }
@@ -101,10 +151,7 @@ function login(username, password) {
   var token = generateToken();
   users[key].token = token;
 
-  // Async Token updaten
-  pool.query(
-    'UPDATE users SET token = ? WHERE username = ?',
-    [token, key],
+  pool.query('UPDATE users SET token = ? WHERE username = ?', [token, key],
     function(err) { if (err) console.error('DB Update Fehler:', err.message); }
   );
 
@@ -121,9 +168,63 @@ function validateToken(token) {
   return { success: false };
 }
 
+function getPlayerData(username) {
+  var key = username.toUpperCase();
+  if (!users[key]) return null;
+  var u = users[key];
+  return {
+    score: u.score || 0,
+    speed_level: u.speed_level || 1,
+    value_multiplier: u.value_multiplier || 1,
+    rogue_speed: u.rogue_speed || 2.5,
+    cost_speed: u.cost_speed || 10,
+    cost_value: u.cost_value || 15,
+    lives: u.lives || 3,
+    godmode: u.godmode || 0,
+    godmode_timer: u.godmode_timer || 0,
+    totems: u.totems || 0
+  };
+}
+
+function savePlayerData(username, data) {
+  var key = username.toUpperCase();
+  if (!users[key]) return;
+
+  users[key].score = data.score;
+  users[key].speed_level = data.speed_level;
+  users[key].value_multiplier = data.value_multiplier;
+  users[key].rogue_speed = data.rogue_speed;
+  users[key].cost_speed = data.cost_speed;
+  users[key].cost_value = data.cost_value;
+  users[key].lives = data.lives;
+  users[key].godmode = data.godmode;
+  users[key].godmode_timer = data.godmode_timer;
+  users[key].totems = data.totems;
+
+  pool.query(
+    'UPDATE users SET score=?, speed_level=?, value_multiplier=?, rogue_speed=?, ' +
+    'cost_speed=?, cost_value=?, lives=?, godmode=?, godmode_timer=?, totems=? ' +
+    'WHERE username=?',
+    [data.score, data.speed_level, data.value_multiplier, data.rogue_speed,
+     data.cost_speed, data.cost_value, data.lives, data.godmode,
+     data.godmode_timer, data.totems, key],
+    function(err) { if (err) console.error('DB Save Fehler:', err.message); }
+  );
+}
+
+function resetPlayerData(username) {
+  var key = username.toUpperCase();
+  if (!users[key]) return;
+  var d = DEFAULT_STATS;
+  savePlayerData(key, d);
+}
+
 module.exports = {
   init: init,
   register: register,
   login: login,
-  validateToken: validateToken
+  validateToken: validateToken,
+  getPlayerData: getPlayerData,
+  savePlayerData: savePlayerData,
+  resetPlayerData: resetPlayerData
 };

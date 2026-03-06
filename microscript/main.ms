@@ -45,21 +45,6 @@ auth_mode = "login"
 auth_error = ""
 auth_token = ""
 
-save_game = function()
-  local data = object end
-  data.score = score
-  data.speed_level = speed_level
-  data.value_multiplier = value_multiplier
-  data.rogue_speed = rogue.speed
-  data.cost_speed = cost_speed
-  data.cost_value = cost_value
-  data.lives = lives
-  data.godmode = godmode
-  data.godmode_timer = godmode_timer
-  data.totems = totems
-  storage.set("rogue_save_data", data)
-end
-
 create_explosion = function(new_x, new_y)
   local expl = object
     x = new_x
@@ -68,6 +53,19 @@ create_explosion = function(new_x, new_y)
     scale = 1
   end
   explosions.push(expl)
+end
+
+apply_player_data = function(msg)
+  score = msg.score
+  speed_level = msg.speed_level
+  value_multiplier = msg.value_multiplier
+  rogue.speed = msg.rogue_speed
+  cost_speed = msg.cost_speed
+  cost_value = msg.cost_value
+  lives = msg.lives
+  godmode = msg.godmode
+  godmode_timer = msg.godmode_timer
+  totems = msg.totems
 end
 
 init = function()
@@ -89,37 +87,17 @@ init = function()
   auth_mode = "login"
   auth_error = ""
 
-  local data = storage.get("rogue_save_data")
-  if data then
-    score = data.score
-    speed_level = data.speed_level
-    value_multiplier = data.value_multiplier
-    rogue.speed = data.rogue_speed
-    cost_speed = data.cost_speed
-    cost_value = data.cost_value
-    if data.lives > 0 then lives = data.lives else lives = 3 end
-    if data.godmode == 1 then
-      godmode = 1
-      godmode_timer = data.godmode_timer
-    else
-      godmode = 0
-      godmode_timer = 0
-    end
-    if data.totems != 0 then totems = data.totems else totems = 0 end
-    print("Spielstand geladen")
-  else
-    score = 0
-    lives = 3
-    speed_level = 1
-    value_multiplier = 1
-    godmode = 0
-    godmode_timer = 0
-    totems = 0
-    rogue.speed = 2.5
-    cost_speed = 10
-    cost_value = 15
-    print("Neues Spiel")
-  end
+  // Defaults
+  score = 0
+  lives = 3
+  speed_level = 1
+  value_multiplier = 1
+  godmode = 0
+  godmode_timer = 0
+  totems = 0
+  rogue.speed = 2.5
+  cost_speed = 10
+  cost_value = 15
 
   // Token aus Storage pruefen
   auth_token = storage.get("rogue_auth_token")
@@ -132,14 +110,12 @@ init = function()
 end
 
 update = function()
-  // Timer immer hochzaehlen (Fix: Cursor-Blink im Login)
   timer = timer + 1
 
   local message = 0
   for message in connection.messages
     if message.mtype == "id" then
       myID = message.id
-      // Falls wir einen Token haben, Auto-Login versuchen
       if auth_token != "" and game_state == "connecting" then
         connection.send(object mtype="token_login" token=auth_token end)
       end
@@ -156,6 +132,9 @@ update = function()
       auth_token = ""
       storage.set("rogue_auth_token", 0)
       game_state = "login"
+
+    elsif message.mtype == "player_data" then
+      apply_player_data(message)
 
     elsif message.mtype == "state" then
       local new_others = []
@@ -186,7 +165,6 @@ update = function()
       other_players = new_others
       online_players = message.players
 
-      // Leaderboard Arrays befuellen
       lb_names = []
       lb_scores = []
       for p in message.players
@@ -194,7 +172,6 @@ update = function()
         lb_scores.push(p.score)
       end
 
-      // Bubble sort auf flachen Arrays
       local swapped = true
       while swapped
         swapped = false
@@ -223,7 +200,6 @@ update = function()
         if not skip then new_coins.push(sc) end
       end
       coins = new_coins
-      // Pending-IDs entfernen, die der Server nicht mehr kennt
       local still_pending = []
       local pid = 0
       for pid in pending_removal
@@ -240,16 +216,9 @@ update = function()
       create_explosion(message.bx, message.bomb_by)
       audio.playSound("explosion_sound")
       if message.victim == username then
-        lives = lives - 1
-        if lives <= 0 then
-          if totems > 0 then
-            totems = totems - 1
-            lives = 3
-            audio.playSound("coin")
-            save_game()
-          else
-            game_state = "gameover"
-          end
+        // Server hat Schaden schon berechnet, warte auf player_data
+        if message.gameover then
+          game_state = "gameover"
         end
       end
     end
@@ -274,20 +243,7 @@ update = function()
   end
 
   if game_state == "shop" and keyboard.press.R then
-    storage.set("rogue_save_data", 0)
-    score = 0
-    lives = 3
-    speed_level = 1
-    value_multiplier = 1
-    rogue.speed = 2.5
-    cost_speed = 10
-    cost_value = 15
-    godmode = 0
-    godmode_timer = 0
-    totems = 0
-    pending_removal = []
-    save_game()
-    game_state = "play"
+    connection.send(object mtype="reset_save" end)
   end
 
   if game_state == "play" then
@@ -302,7 +258,6 @@ update = function()
 end
 
 update_login = function()
-  // TAB wechselt zwischen Feldern
   if keyboard.press.TAB then
     if auth_field == "user" then
       auth_field = "pass"
@@ -360,7 +315,6 @@ update_login = function()
     end
   end
 
-  // Modus umschalten mit Shift
   if keyboard.press.SHIFT then
     if auth_mode == "login" then
       auth_mode = "register"
@@ -373,18 +327,7 @@ end
 
 update_gameover = function()
   if keyboard.press.SPACE or keyboard.press.ENTER then
-    score = 0
-    lives = 3
-    speed_level = 1
-    value_multiplier = 1
-    rogue.speed = 2.5
-    cost_speed = 10
-    cost_value = 15
-    godmode = 0
-    godmode_timer = 0
-    totems = 0
-    pending_removal = []
-    save_game()
+    connection.send(object mtype="reset_save" end)
     game_state = "play"
   end
 end
@@ -401,11 +344,11 @@ update_game = function()
   end
 
   if godmode == 1 and keyboard.G then
+    connection.send(object mtype="use_godmode" end)
     godmode_timer = godmode_timer - 1
     if godmode_timer <= 0 then
       godmode = 0
       godmode_timer = 0
-      print("Godmode abgelaufen!")
     end
   end
 
@@ -461,7 +404,7 @@ update_game = function()
 
       elsif not pending and c.item_type == "coin" and dist < 30 then
         pending_removal.push(c.id)
-        connection.send(object mtype="collect" coin_id=c.id value_multiplier=value_multiplier end)
+        connection.send(object mtype="collect" coin_id=c.id end)
         coins.removeAt(i)
         i = i - 1
         audio.playSound("coin")
@@ -486,47 +429,19 @@ end
 
 update_shop = function()
   if keyboard.press["1"] then
-    if score >= cost_speed then
-      score = score - cost_speed
-      rogue.speed = rogue.speed + 0.5
-      speed_level = speed_level + 1
-      cost_speed = floor(cost_speed * 1.5)
-      save_game()
-    end
+    connection.send(object mtype="buy_upgrade" slot=1 end)
   end
-
   if keyboard.press["2"] then
-    if score >= cost_value then
-      score = score - cost_value
-      value_multiplier = value_multiplier + 1
-      cost_value = floor(cost_value * 1.8)
-      save_game()
-    end
+    connection.send(object mtype="buy_upgrade" slot=2 end)
   end
-
   if keyboard.press["3"] then
-    if score >= cost_heal and lives < 3 then
-      score = score - cost_heal
-      lives = lives + 1
-      save_game()
-    end
+    connection.send(object mtype="buy_upgrade" slot=3 end)
   end
-
   if keyboard.press["4"] then
-    if score >= cost_godmode then
-      score = score - cost_godmode
-      godmode = 1
-      godmode_timer = godmode_timer + 600
-      save_game()
-    end
+    connection.send(object mtype="buy_upgrade" slot=4 end)
   end
-
   if keyboard.press["5"] then
-    if score >= cost_totem then
-      score = score - cost_totem
-      totems = totems + 1
-      save_game()
-    end
+    connection.send(object mtype="buy_upgrade" slot=5 end)
   end
 end
 
@@ -564,20 +479,17 @@ draw_login = function()
     screen.drawText("REGISTRIEREN", 0, 50, 20, "lime")
   end
 
-  // Username Feld
   local u_border = "#555"
   if auth_field == "user" then u_border = "#FFD700" end
   screen.drawText("Benutzername:", -60, 28, 10, "gray")
   screen.fillRect(0, 15, 200, 22, "#222")
   screen.drawRect(0, 15, 200, 22, u_border)
   screen.drawText(username, 0, 15, 14, "#FFD700")
-  // Blinkender Cursor als Strich
   if auth_field == "user" and floor(timer / 20) % 2 == 0 then
     local cx = username.length * 4.5
     screen.fillRect(cx + 2, 15, 2, 12, "#FFD700")
   end
 
-  // Passwort Feld
   local p_border = "#555"
   if auth_field == "pass" then p_border = "#FFD700" end
   screen.drawText("Passwort:", -66, -2, 10, "gray")
@@ -593,12 +505,10 @@ draw_login = function()
     screen.fillRect(cx + 2, -15, 2, 12, "#FFD700")
   end
 
-  // Fehlermeldung
   if auth_error != "" then
     screen.drawText(auth_error, 0, -38, 10, "red")
   end
 
-  // Aktionen
   if auth_mode == "login" then
     screen.drawText("[ENTER] Einloggen", 0, -55, 13, "lime")
     screen.drawText("[SHIFT] Zu Registrierung wechseln", 0, -72, 10, "gray")
@@ -621,23 +531,20 @@ draw_gameover = function()
   screen.fillRect(0, 0, screen.width, screen.height, "rgba(0,0,0,0.8)")
   screen.drawText("GAME OVER", 0, 40, 50, "red")
   screen.drawText("Score: " + score, 0, -10, 20, "white")
-  screen.drawText("Druecke [SPACE] fuer Neustart (Reset)", 0, -60, 15, "yellow")
+  screen.drawText("Druecke [SPACE] fuer Neustart", 0, -60, 15, "yellow")
 end
 
 draw_game = function()
-  // Muenzen zeichnen
   local c = 0
   for c in coins
     screen.drawSprite(c.im, c.x, c.y, c.w, c.h)
   end
 
-  // Explosionen zeichnen
   local ex = 0
   for ex in explosions
     screen.drawSprite("effects/explosion", ex.x, ex.y, 64 * ex.scale, 64 * ex.scale)
   end
 
-  // Andere Spieler zeichnen mit Interpolation + Animation
   local op = 0
   for op in other_players
     local prev_x = op.x
@@ -663,11 +570,9 @@ draw_game = function()
     screen.drawText(op.name, op.x, op.y + 22, 8, "cyan")
   end
 
-  // Eigenen Charakter zeichnen
   screen.drawSprite(rogue.im, rogue.x, rogue.y, rogue.w, rogue.h)
   screen.drawText(username, rogue.x, rogue.y + 22, 8, "lime")
 
-  // Leben
   for i = 1 to 3
     local h_x = -screen.width/2 + 11 + (i * 17)
     local h_y = screen.height/2 - 20
@@ -691,7 +596,6 @@ draw_game = function()
     screen.drawText("(Halte G)", 0, -screen.height/2 + 30, 8, "white")
   end
 
-  // Leaderboard rechts
   local panel_x = screen.width/2 - 55
   screen.fillRect(panel_x, 0, 100, screen.height-50, "rgba(0,0,0,0.55)")
   screen.drawText("LEADERBOARD", panel_x, screen.height/2 - 34, 9, "#FFD700")
