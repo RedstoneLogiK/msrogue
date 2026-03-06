@@ -334,8 +334,8 @@ update = function()
 end
 
 update_login = function()
-  // UP/DOWN wechselt zwischen Feldern
-  if keyboard.press.DOWN or keyboard.press.UP or keyboard.press.TAB then
+  // TAB wechselt zwischen Feldern
+  if keyboard.press.TAB then
     if auth_field == "user" then
       auth_field = "pass"
     else
@@ -630,7 +630,7 @@ draw_login = function()
     screen.drawText("[ENTER] Registrieren", 0, -55, 13, "lime")
     screen.drawText("[SHIFT] Zu Login wechseln", 0, -72, 10, "gray")
   end
-  screen.drawText("[Pfeiltasten] Feld wechseln", 0, -85, 10, "gray")
+  screen.drawText("[TAB] Feld wechseln", 0, -85, 10, "gray")
 end
 
 draw_pause = function()
