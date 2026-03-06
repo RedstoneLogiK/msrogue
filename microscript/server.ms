@@ -93,6 +93,7 @@ serverUpdate = function()
       x = 0
       y = 0
       score = 0
+      logged_in = 0
     end
   end
 
@@ -105,54 +106,114 @@ serverUpdate = function()
   local message = 0
   for message in server.messages
     if message.data != 0 then
+      local pid = message.connection.id
 
-      if message.data.mtype == "login" then
-        players[message.connection.id].name = message.data.name
-        print("Login: " + message.data.name)
-        broadcast_all()
+      if message.data.mtype == "register" then
+        local result = auth_register(message.data.name, message.data.password)
+        if result.success then
+          players[pid].name = result.username
+          players[pid].logged_in = 1
+          print("Register: " + result.username)
+          message.connection.send(object mtype="auth_ok" token=result.token name=result.username end)
+          broadcast_all()
+        else
+          message.connection.send(object mtype="auth_fail" error=result.error end)
+        end
+
+      elsif message.data.mtype == "login" then
+        local result = auth_login(message.data.name, message.data.password)
+        if result.success then
+          // Pruefen ob Name bereits online ist
+          local already_online = 0
+          local cc = 0
+          for cc in server.active_connections
+            if players[cc.id] != 0 and players[cc.id] != null then
+              if players[cc.id].name == result.username and cc.id != pid then
+                already_online = 1
+              end
+            end
+          end
+          if already_online == 1 then
+            message.connection.send(object mtype="auth_fail" error="Bereits eingeloggt" end)
+          else
+            players[pid].name = result.username
+            players[pid].logged_in = 1
+            print("Login: " + result.username)
+            message.connection.send(object mtype="auth_ok" token=result.token name=result.username end)
+            broadcast_all()
+          end
+        else
+          message.connection.send(object mtype="auth_fail" error=result.error end)
+        end
+
+      elsif message.data.mtype == "token_login" then
+        local result = auth_validate(message.data.token)
+        if result.success then
+          local already_online = 0
+          local cc = 0
+          for cc in server.active_connections
+            if players[cc.id] != 0 and players[cc.id] != null then
+              if players[cc.id].name == result.username and cc.id != pid then
+                already_online = 1
+              end
+            end
+          end
+          if already_online == 1 then
+            message.connection.send(object mtype="auth_fail" error="Bereits eingeloggt" end)
+          else
+            players[pid].name = result.username
+            players[pid].logged_in = 1
+            print("Token-Login: " + result.username)
+            message.connection.send(object mtype="auth_ok" token=message.data.token name=result.username end)
+            broadcast_all()
+          end
+        else
+          message.connection.send(object mtype="auth_fail" error="Token ungueltig" end)
+        end
 
       elsif message.data.mtype == "pos" then
-        if players[message.connection.id] != 0 then
-          players[message.connection.id].x = message.data.x
-          players[message.connection.id].y = message.data.y
+        if players[pid] != 0 and players[pid] != null and players[pid].logged_in == 1 then
+          players[pid].x = message.data.x
+          players[pid].y = message.data.y
         end
 
       elsif message.data.mtype == "collect" then
-        local coin_id = message.data.coin_id
-        local vm = message.data.value_multiplier
-        if vm == 0 or vm == null then vm = 1 end
-        local i = 0
-        for i = 0 to coins.length - 1
-          if coins[i] != 0 and coins[i].id == coin_id then
-            local val = coins[i].value * vm
-            if players[message.connection.id] != 0 then
-              players[message.connection.id].score = players[message.connection.id].score + val
+        if players[pid] != 0 and players[pid] != null and players[pid].logged_in == 1 then
+          local coin_id = message.data.coin_id
+          // Server berechnet value_multiplier nicht mehr vom Client
+          local vm = message.data.value_multiplier
+          if vm == 0 or vm == null then vm = 1 end
+          local i = 0
+          for i = 0 to coins.length - 1
+            if coins[i] != 0 and coins[i].id == coin_id then
+              local val = coins[i].value * vm
+              players[pid].score = players[pid].score + val
+              coins.removeAt(i)
+              broadcast_all()
+              i = coins.length
             end
-            coins.removeAt(i)
-            broadcast_all()
-            i = coins.length
           end
         end
 
       elsif message.data.mtype == "bomb_hit" then
-        local coin_id = message.data.coin_id
-        local bomb_bx = message.data.bx
-        local bomb_by = message.data.bomb_by
-        local victim = message.data.victim
-        // Münze entfernen
-        local i = 0
-        for i = 0 to coins.length - 1
-          if coins[i] != 0 and coins[i].id == coin_id then
-            coins.removeAt(i)
-            i = coins.length
+        if players[pid] != 0 and players[pid] != null and players[pid].logged_in == 1 then
+          local coin_id = message.data.coin_id
+          local bomb_bx = message.data.bx
+          local bomb_by = message.data.bomb_by
+          local victim = players[pid].name
+          local i = 0
+          for i = 0 to coins.length - 1
+            if coins[i] != 0 and coins[i].id == coin_id then
+              coins.removeAt(i)
+              i = coins.length
+            end
           end
+          local bc = 0
+          for bc in server.active_connections
+            bc.send(object mtype="bomb" coin_id=coin_id bx=bomb_bx bomb_by=bomb_by victim=victim end)
+          end
+          broadcast_all()
         end
-        // Explosion an ALLE senden
-        local bc = 0
-        for bc in server.active_connections
-          bc.send(object mtype="bomb" coin_id=coin_id bx=bomb_bx bomb_by=bomb_by victim=victim end)
-        end
-        broadcast_all()
 
       end
     end
@@ -170,7 +231,7 @@ serverUpdate = function()
     end
   end
 
-  // Spawn-Rate abhängig von Spieleranzahl (1.75x bei 2 Spielern etc.)
+  // Spawn-Rate abhaengig von Spieleranzahl
   local pcount = player_count()
   local max_coins = floor(8 + (pcount - 1) * 5 * 0.75)
   local spawn_rate = max(20, 60 - pcount * 8)

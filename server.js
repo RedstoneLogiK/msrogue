@@ -1,4 +1,5 @@
 var window = global ;
+var auth = require("./auth") ;
 
 var start = function() {
   window.player = new this.Player(function(event) {
@@ -25,7 +26,6 @@ global.navigator = {
 window.ms_libs = [] ;
 
 server_code = `
-
 
 
 // file: main.ms
@@ -66,9 +66,16 @@ username = ""
 online_players = []
 other_players = []
 
-// Leaderboard als flache Arrays – vermeidet Typ-Probleme
+// Leaderboard als flache Arrays
 lb_names = []
 lb_scores = []
+
+// Auth state
+auth_field = "user"
+auth_password = ""
+auth_mode = "login"
+auth_error = ""
+auth_token = ""
 
 save_game = function()
   local data = object end
@@ -109,6 +116,10 @@ init = function()
   lb_names = []
   lb_scores = []
   pos_timer = 0
+  auth_field = "user"
+  auth_password = ""
+  auth_mode = "login"
+  auth_error = ""
 
   local data = storage.get("rogue_save_data")
   if data then
@@ -142,14 +153,41 @@ init = function()
     print("Neues Spiel")
   end
 
-  game_state = "login"
+  // Token aus Storage pruefen
+  auth_token = storage.get("rogue_auth_token")
+  if auth_token then
+    game_state = "connecting"
+  else
+    auth_token = ""
+    game_state = "login"
+  end
 end
 
 update = function()
+  // Timer immer hochzaehlen (Fix: Cursor-Blink im Login)
+  timer = timer + 1
+
   local message = 0
   for message in connection.messages
     if message.mtype == "id" then
       myID = message.id
+      // Falls wir einen Token haben, Auto-Login versuchen
+      if auth_token != "" and game_state == "connecting" then
+        connection.send(object mtype="token_login" token=auth_token end)
+      end
+
+    elsif message.mtype == "auth_ok" then
+      username = message.name
+      auth_token = message.token
+      storage.set("rogue_auth_token", message.token)
+      auth_error = ""
+      game_state = "play"
+
+    elsif message.mtype == "auth_fail" then
+      auth_error = message.error
+      auth_token = ""
+      storage.set("rogue_auth_token", 0)
+      game_state = "login"
 
     elsif message.mtype == "state" then
       local new_others = []
@@ -180,7 +218,7 @@ update = function()
       other_players = new_others
       online_players = message.players
 
-      // Leaderboard Arrays befüllen
+      // Leaderboard Arrays befuellen
       lb_names = []
       lb_scores = []
       for p in message.players
@@ -269,7 +307,19 @@ update = function()
 
   if game_state == "shop" and keyboard.press.R then
     storage.set("rogue_save_data", 0)
-    init()
+    score = 0
+    lives = 3
+    speed_level = 1
+    value_multiplier = 1
+    rogue.speed = 2.5
+    cost_speed = 10
+    cost_value = 15
+    godmode = 0
+    godmode_timer = 0
+    totems = 0
+    pending_removal = []
+    save_game()
+    game_state = "play"
   end
 
   if game_state == "play" then
@@ -284,29 +334,64 @@ update = function()
 end
 
 update_login = function()
+  // Tab wechselt zwischen Feldern
+  if keyboard.press.TAB then
+    if auth_field == "user" then
+      auth_field = "pass"
+    else
+      auth_field = "user"
+    end
+  end
+
+  // Modus umschalten mit F1
+  if keyboard.press.F1 then
+    if auth_mode == "login" then
+      auth_mode = "register"
+    else
+      auth_mode = "login"
+    end
+    auth_error = ""
+  end
+
   local letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   for i = 0 to letters.length - 1
     local ch = letters[i]
-    if keyboard.press[ch] and username.length < 14 then
-      username = username + ch
+    if keyboard.press[ch] then
+      if auth_field == "user" and username.length < 14 then
+        username = username + ch
+      elsif auth_field == "pass" and auth_password.length < 30 then
+        auth_password = auth_password + ch
+      end
     end
   end
 
   local nums = "0123456789"
   for i = 0 to nums.length - 1
     local n = nums[i]
-    if keyboard.press[n] and username.length < 14 then
-      username = username + n
+    if keyboard.press[n] then
+      if auth_field == "user" and username.length < 14 then
+        username = username + n
+      elsif auth_field == "pass" and auth_password.length < 30 then
+        auth_password = auth_password + n
+      end
     end
   end
 
-  if keyboard.press.BACKSPACE and username.length > 0 then
-    username = username.slice(0, username.length - 1)
+  if keyboard.press.BACKSPACE then
+    if auth_field == "user" and username.length > 0 then
+      username = username.slice(0, username.length - 1)
+    elsif auth_field == "pass" and auth_password.length > 0 then
+      auth_password = auth_password.slice(0, auth_password.length - 1)
+    end
   end
 
-  if keyboard.press.ENTER and username.length > 0 then
-    connection.send(object mtype="login" name=username end)
-    game_state = "play"
+  if keyboard.press.ENTER and username.length > 0 and auth_password.length > 0 then
+    if auth_mode == "login" then
+      connection.send(object mtype="login" name=username password=auth_password end)
+    else
+      connection.send(object mtype="register" name=username password=auth_password end)
+    end
+    auth_error = ""
   end
 end
 
@@ -394,7 +479,7 @@ update_game = function()
 
       if not pending and c.item_type == "bomb" and dist < 45 then
         pending_removal.push(c.id)
-        connection.send(object mtype="bomb_hit" coin_id=c.id bx=c.x bomb_by=c.y victim=username end)
+        connection.send(object mtype="bomb_hit" coin_id=c.id bx=c.x bomb_by=c.y end)
         coins.removeAt(i)
         i = i - 1
 
@@ -421,8 +506,6 @@ update_game = function()
       end
     end
   end
-
-  timer = timer + 1
 end
 
 update_shop = function()
@@ -476,6 +559,8 @@ draw = function()
 
   if game_state == "login" then
     draw_login()
+  elsif game_state == "connecting" then
+    draw_connecting()
   elsif game_state == "play" then
     draw_game()
   elsif game_state == "shop" then
@@ -487,39 +572,97 @@ draw = function()
   end
 end
 
-draw_login = function()
+draw_connecting = function()
   screen.fillRect(0, 0, screen.width, screen.height, "rgba(0,0,0,0.92)")
   screen.drawText("ROGUE COINS", 0, 60, 35, "#FFD700")
-  screen.drawText("Benutzername eingeben:", 0, 20, 16, "white")
+  screen.drawText("Verbinde...", 0, 0, 16, "white")
+end
 
-  screen.fillRect(0, -5, 180, 28, "#222")
-  screen.drawRect(0, -5, 180, 28, "#FFD700")
+draw_login = function()
+  screen.fillRect(0, 0, screen.width, screen.height, "rgba(0,0,0,0.92)")
+  screen.drawText("ROGUE COINS", 0, 80, 35, "#FFD700")
 
-  local display = username
-  if floor(timer / 20) % 2 == 0 then display = display + "_" end
-  screen.drawText(display, 0, -5, 18, "#FFD700")
+  if auth_mode == "login" then
+    screen.drawText("LOGIN", 0, 50, 20, "white")
+  else
+    screen.drawText("REGISTRIEREN", 0, 50, 20, "lime")
+  end
 
-  screen.drawText("[ENTER] Beitreten", 0, -45, 13, "lime")
-  screen.drawText("(max. 14 Zeichen, A-Z 0-9)", 0, -65, 10, "gray")
+  // Username Feld
+  local u_col = "#555"
+  local u_text_col = "#FFD700"
+  if auth_field == "user" then
+    u_col = "#333"
+    u_text_col = "#FFD700"
+  end
+  screen.drawText("Benutzername:", 0, 28, 10, "gray")
+  screen.fillRect(0, 15, 200, 22, u_col)
+  if auth_field == "user" then
+    screen.drawRect(0, 15, 200, 22, "#FFD700")
+  else
+    screen.drawRect(0, 15, 200, 22, "#555")
+  end
+  local u_display = username
+  if auth_field == "user" and floor(timer / 20) % 2 == 0 then
+    u_display = u_display + "_"
+  end
+  screen.drawText(u_display, 0, 15, 14, u_text_col)
+
+  // Passwort Feld
+  local p_col = "#555"
+  if auth_field == "pass" then
+    p_col = "#333"
+  end
+  screen.drawText("Passwort:", 0, -2, 10, "gray")
+  screen.fillRect(0, -15, 200, 22, p_col)
+  if auth_field == "pass" then
+    screen.drawRect(0, -15, 200, 22, "#FFD700")
+  else
+    screen.drawRect(0, -15, 200, 22, "#555")
+  end
+  local p_display = ""
+  for i = 0 to auth_password.length - 1
+    p_display = p_display + "*"
+  end
+  if auth_field == "pass" and floor(timer / 20) % 2 == 0 then
+    p_display = p_display + "_"
+  end
+  screen.drawText(p_display, 0, -15, 14, "#FFD700")
+
+  // Fehlermeldung
+  if auth_error != "" then
+    screen.drawText(auth_error, 0, -38, 10, "red")
+  end
+
+  // Aktionen
+  if auth_mode == "login" then
+    screen.drawText("[ENTER] Einloggen", 0, -55, 13, "lime")
+    screen.drawText("[F1] Zu Registrierung wechseln", 0, -72, 10, "gray")
+  else
+    screen.drawText("[ENTER] Registrieren", 0, -55, 13, "lime")
+    screen.drawText("[F1] Zu Login wechseln", 0, -72, 10, "gray")
+  end
+  screen.drawText("[TAB] Feld wechseln", 0, -85, 10, "gray")
+  screen.drawText("(A-Z 0-9)", 0, -96, 8, "#555")
 end
 
 draw_pause = function()
   draw_game()
   screen.fillRect(0, 0, screen.width, screen.height, "rgba(0,0,0,0.6)")
   screen.drawText("PAUSE", 0, 20, 50, "white")
-  screen.drawText("Drücke [ESC] um weiterzuspielen", 0, -30, 15, "white")
+  screen.drawText("Druecke [ESC] um weiterzuspielen", 0, -30, 15, "white")
 end
 
 draw_gameover = function()
   draw_game()
   screen.fillRect(0, 0, screen.width, screen.height, "rgba(0,0,0,0.8)")
   screen.drawText("GAME OVER", 0, 40, 50, "red")
-  screen.drawText("Endgültiger Score: " + score, 0, -10, 20, "white")
-  screen.drawText("Drücke [SPACE] für Neustart (Reset)", 0, -60, 15, "yellow")
+  screen.drawText("Score: " + score, 0, -10, 20, "white")
+  screen.drawText("Druecke [SPACE] fuer Neustart (Reset)", 0, -60, 15, "yellow")
 end
 
 draw_game = function()
-  // Münzen zeichnen
+  // Muenzen zeichnen
   local c = 0
   for c in coins
     screen.drawSprite(c.im, c.x, c.y, c.w, c.h)
@@ -585,7 +728,7 @@ draw_game = function()
     screen.drawText("(Halte G)", 0, -screen.height/2 + 30, 8, "white")
   end
 
-  // Leaderboard rechts – direkt aus flachen Arrays
+  // Leaderboard rechts
   local panel_x = screen.width/2 - 55
   screen.fillRect(panel_x, 0, 100, screen.height-50, "rgba(0,0,0,0.55)")
   screen.drawText("LEADERBOARD", panel_x, screen.height/2 - 34, 9, "#FFD700")
@@ -602,7 +745,7 @@ draw_game = function()
     screen.drawText(pscore, panel_x + 28, py, 8, "#FFD700")
   end
 
-  screen.drawText("© 2026 Simon Bleher - GNU GPLv3", 145, 95, 4, "#FFD700")
+  screen.drawText("(c) 2026 Simon Bleher - GNU GPLv3", 145, 95, 4, "#FFD700")
 end
 
 draw_shop = function()
@@ -647,9 +790,10 @@ draw_shop = function()
   if score >= cost_totem then col5 = "lime" end
   screen.drawText("$" + cost_totem, 0, -55, 15, col5)
 
-  screen.drawText("Drücke [B] oder [ESC] zum Schließen", 0, -85, 12, "white")
+  screen.drawText("Druecke [B] oder [ESC] zum Schliessen", 0, -85, 12, "white")
   screen.drawText("[R] Reset Spielstand", 0, -100, 10, "red")
 end
+
 
 end()
 
@@ -752,6 +896,7 @@ serverUpdate = function()
       x = 0
       y = 0
       score = 0
+      logged_in = 0
     end
   end
 
@@ -764,54 +909,114 @@ serverUpdate = function()
   local message = 0
   for message in server.messages
     if message.data != 0 then
+      local pid = message.connection.id
 
-      if message.data.mtype == "login" then
-        players[message.connection.id].name = message.data.name
-        print("Login: " + message.data.name)
-        broadcast_all()
+      if message.data.mtype == "register" then
+        local result = auth_register(message.data.name, message.data.password)
+        if result.success then
+          players[pid].name = result.username
+          players[pid].logged_in = 1
+          print("Register: " + result.username)
+          message.connection.send(object mtype="auth_ok" token=result.token name=result.username end)
+          broadcast_all()
+        else
+          message.connection.send(object mtype="auth_fail" error=result.error end)
+        end
+
+      elsif message.data.mtype == "login" then
+        local result = auth_login(message.data.name, message.data.password)
+        if result.success then
+          // Pruefen ob Name bereits online ist
+          local already_online = 0
+          local cc = 0
+          for cc in server.active_connections
+            if players[cc.id] != 0 and players[cc.id] != null then
+              if players[cc.id].name == result.username and cc.id != pid then
+                already_online = 1
+              end
+            end
+          end
+          if already_online == 1 then
+            message.connection.send(object mtype="auth_fail" error="Bereits eingeloggt" end)
+          else
+            players[pid].name = result.username
+            players[pid].logged_in = 1
+            print("Login: " + result.username)
+            message.connection.send(object mtype="auth_ok" token=result.token name=result.username end)
+            broadcast_all()
+          end
+        else
+          message.connection.send(object mtype="auth_fail" error=result.error end)
+        end
+
+      elsif message.data.mtype == "token_login" then
+        local result = auth_validate(message.data.token)
+        if result.success then
+          local already_online = 0
+          local cc = 0
+          for cc in server.active_connections
+            if players[cc.id] != 0 and players[cc.id] != null then
+              if players[cc.id].name == result.username and cc.id != pid then
+                already_online = 1
+              end
+            end
+          end
+          if already_online == 1 then
+            message.connection.send(object mtype="auth_fail" error="Bereits eingeloggt" end)
+          else
+            players[pid].name = result.username
+            players[pid].logged_in = 1
+            print("Token-Login: " + result.username)
+            message.connection.send(object mtype="auth_ok" token=message.data.token name=result.username end)
+            broadcast_all()
+          end
+        else
+          message.connection.send(object mtype="auth_fail" error="Token ungueltig" end)
+        end
 
       elsif message.data.mtype == "pos" then
-        if players[message.connection.id] != 0 then
-          players[message.connection.id].x = message.data.x
-          players[message.connection.id].y = message.data.y
+        if players[pid] != 0 and players[pid] != null and players[pid].logged_in == 1 then
+          players[pid].x = message.data.x
+          players[pid].y = message.data.y
         end
 
       elsif message.data.mtype == "collect" then
-        local coin_id = message.data.coin_id
-        local vm = message.data.value_multiplier
-        if vm == 0 or vm == null then vm = 1 end
-        local i = 0
-        for i = 0 to coins.length - 1
-          if coins[i] != 0 and coins[i].id == coin_id then
-            local val = coins[i].value * vm
-            if players[message.connection.id] != 0 then
-              players[message.connection.id].score = players[message.connection.id].score + val
+        if players[pid] != 0 and players[pid] != null and players[pid].logged_in == 1 then
+          local coin_id = message.data.coin_id
+          // Server berechnet value_multiplier nicht mehr vom Client
+          local vm = message.data.value_multiplier
+          if vm == 0 or vm == null then vm = 1 end
+          local i = 0
+          for i = 0 to coins.length - 1
+            if coins[i] != 0 and coins[i].id == coin_id then
+              local val = coins[i].value * vm
+              players[pid].score = players[pid].score + val
+              coins.removeAt(i)
+              broadcast_all()
+              i = coins.length
             end
-            coins.removeAt(i)
-            broadcast_all()
-            i = coins.length
           end
         end
 
       elsif message.data.mtype == "bomb_hit" then
-        local coin_id = message.data.coin_id
-        local bomb_bx = message.data.bx
-        local bomb_by = message.data.bomb_by
-        local victim = message.data.victim
-        // Münze entfernen
-        local i = 0
-        for i = 0 to coins.length - 1
-          if coins[i] != 0 and coins[i].id == coin_id then
-            coins.removeAt(i)
-            i = coins.length
+        if players[pid] != 0 and players[pid] != null and players[pid].logged_in == 1 then
+          local coin_id = message.data.coin_id
+          local bomb_bx = message.data.bx
+          local bomb_by = message.data.bomb_by
+          local victim = players[pid].name
+          local i = 0
+          for i = 0 to coins.length - 1
+            if coins[i] != 0 and coins[i].id == coin_id then
+              coins.removeAt(i)
+              i = coins.length
+            end
           end
+          local bc = 0
+          for bc in server.active_connections
+            bc.send(object mtype="bomb" coin_id=coin_id bx=bomb_bx bomb_by=bomb_by victim=victim end)
+          end
+          broadcast_all()
         end
-        // Explosion an ALLE senden
-        local bc = 0
-        for bc in server.active_connections
-          bc.send(object mtype="bomb" coin_id=coin_id bx=bomb_bx bomb_by=bomb_by victim=victim end)
-        end
-        broadcast_all()
 
       end
     end
@@ -829,7 +1034,7 @@ serverUpdate = function()
     end
   end
 
-  // Spawn-Rate abhängig von Spieleranzahl (1.75x bei 2 Spielern etc.)
+  // Spawn-Rate abhaengig von Spieleranzahl
   local pcount = player_count()
   local max_coins = floor(8 + (pcount - 1) * 5 * 0.75)
   local spawn_rate = max(20, 60 - pcount * 8)
@@ -847,8 +1052,8 @@ serverUpdate = function()
   end
 end
 
-end()
 
+end()
 
 
 `
@@ -7457,6 +7662,9 @@ this.Runtime = class Runtime {
     namespace = location.pathname + "[server]";
     this.vm = new MicroVM(meta, global, namespace, location.hash === "#transpiler");
     this.vm.context.global.Server = MPServer;
+    this.vm.context.global.auth_register = function(username, password) { return auth.register(username, password); };
+    this.vm.context.global.auth_login = function(username, password) { return auth.login(username, password); };
+    this.vm.context.global.auth_validate = function(token) { return auth.validateToken(token); };
     this.vm.context.global.system.pause = () => {
       return this.listener.codePaused();
     };
