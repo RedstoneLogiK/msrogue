@@ -334,23 +334,13 @@ update = function()
 end
 
 update_login = function()
-  // Tab wechselt zwischen Feldern
-  if keyboard.press.TAB then
+  // UP/DOWN wechselt zwischen Feldern
+  if keyboard.press.DOWN or keyboard.press.UP or keyboard.press.TAB then
     if auth_field == "user" then
       auth_field = "pass"
     else
       auth_field = "user"
     end
-  end
-
-  // Modus umschalten mit F1
-  if keyboard.press.F1 then
-    if auth_mode == "login" then
-      auth_mode = "register"
-    else
-      auth_mode = "login"
-    end
-    auth_error = ""
   end
 
   local letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -390,6 +380,16 @@ update_login = function()
       connection.send(object mtype="login" name=username password=auth_password end)
     else
       connection.send(object mtype="register" name=username password=auth_password end)
+    end
+    auth_error = ""
+  end
+
+  // Modus umschalten mit Shift
+  if keyboard.press.SHIFT then
+    if auth_mode == "login" then
+      auth_mode = "register"
+    else
+      auth_mode = "login"
     end
     auth_error = ""
   end
@@ -589,45 +589,33 @@ draw_login = function()
   end
 
   // Username Feld
-  local u_col = "#555"
-  local u_text_col = "#FFD700"
-  if auth_field == "user" then
-    u_col = "#333"
-    u_text_col = "#FFD700"
-  end
-  screen.drawText("Benutzername:", 0, 28, 10, "gray")
-  screen.fillRect(0, 15, 200, 22, u_col)
-  if auth_field == "user" then
-    screen.drawRect(0, 15, 200, 22, "#FFD700")
-  else
-    screen.drawRect(0, 15, 200, 22, "#555")
-  end
-  local u_display = username
+  local u_border = "#555"
+  if auth_field == "user" then u_border = "#FFD700" end
+  screen.drawText("Benutzername:", -60, 28, 10, "gray")
+  screen.fillRect(0, 15, 200, 22, "#222")
+  screen.drawRect(0, 15, 200, 22, u_border)
+  screen.drawText(username, 0, 15, 14, "#FFD700")
+  // Blinkender Cursor als Strich
   if auth_field == "user" and floor(timer / 20) % 2 == 0 then
-    u_display = u_display + "_"
+    local cx = username.length * 4.5
+    screen.fillRect(cx + 2, 15, 2, 12, "#FFD700")
   end
-  screen.drawText(u_display, 0, 15, 14, u_text_col)
 
   // Passwort Feld
-  local p_col = "#555"
-  if auth_field == "pass" then
-    p_col = "#333"
-  end
-  screen.drawText("Passwort:", 0, -2, 10, "gray")
-  screen.fillRect(0, -15, 200, 22, p_col)
-  if auth_field == "pass" then
-    screen.drawRect(0, -15, 200, 22, "#FFD700")
-  else
-    screen.drawRect(0, -15, 200, 22, "#555")
-  end
+  local p_border = "#555"
+  if auth_field == "pass" then p_border = "#FFD700" end
+  screen.drawText("Passwort:", -66, -2, 10, "gray")
+  screen.fillRect(0, -15, 200, 22, "#222")
+  screen.drawRect(0, -15, 200, 22, p_border)
   local p_display = ""
   for i = 0 to auth_password.length - 1
     p_display = p_display + "*"
   end
-  if auth_field == "pass" and floor(timer / 20) % 2 == 0 then
-    p_display = p_display + "_"
-  end
   screen.drawText(p_display, 0, -15, 14, "#FFD700")
+  if auth_field == "pass" and floor(timer / 20) % 2 == 0 then
+    local cx = auth_password.length * 4.5
+    screen.fillRect(cx + 2, -15, 2, 12, "#FFD700")
+  end
 
   // Fehlermeldung
   if auth_error != "" then
@@ -637,13 +625,12 @@ draw_login = function()
   // Aktionen
   if auth_mode == "login" then
     screen.drawText("[ENTER] Einloggen", 0, -55, 13, "lime")
-    screen.drawText("[F1] Zu Registrierung wechseln", 0, -72, 10, "gray")
+    screen.drawText("[SHIFT] Zu Registrierung wechseln", 0, -72, 10, "gray")
   else
     screen.drawText("[ENTER] Registrieren", 0, -55, 13, "lime")
-    screen.drawText("[F1] Zu Login wechseln", 0, -72, 10, "gray")
+    screen.drawText("[SHIFT] Zu Login wechseln", 0, -72, 10, "gray")
   end
-  screen.drawText("[TAB] Feld wechseln", 0, -85, 10, "gray")
-  screen.drawText("(A-Z 0-9)", 0, -96, 8, "#555")
+  screen.drawText("[Pfeiltasten] Feld wechseln", 0, -85, 10, "gray")
 end
 
 draw_pause = function()

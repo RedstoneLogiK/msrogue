@@ -16,7 +16,7 @@
 #canvaswrapper {
   text-align: center ;
 }
-</style><script>window.fonts = []</script></head><body class="noselect custom-cursor" oncontextmenu="return false;"><div id="canvaswrapper"></div><script type="text/javascript">var resources = {"images":[{"file":"coins-coin_bronze.png","version":7,"size":1221,"properties":{"frames":6,"fps":2}},{"file":"coins-coin_diamond.png","version":8,"size":1225,"properties":{"frames":6,"fps":7}},{"file":"coins-coin_gold.png","version":74,"size":1106,"properties":{"frames":6,"fps":10}},{"file":"coins-coin_silver.png","version":8,"size":1204,"properties":{"frames":6,"fps":7}},{"file":"effects-explosion.png","version":32,"size":95911,"properties":{"frames":35,"fps":38}},{"file":"gamepad3.png","version":1,"size":289,"properties":{}},{"file":"heart.png","version":27,"size":262,"properties":{"frames":1,"fps":5}},{"file":"heart_empty.png","version":12,"size":196,"properties":{"frames":1,"fps":17}},{"file":"icon.png","version":2,"size":386,"properties":{"frames":1,"fps":5}},{"file":"items-bomb.png","version":5,"size":198,"properties":{"frames":1,"fps":5}},{"file":"kenneysprites-tinydungeon-preview.png","version":1,"size":57318,"properties":{"frames":1,"fps":5}},{"file":"kenneysprites-tinydungeon-sample.png","version":1,"size":82851,"properties":{"frames":1,"fps":5}},{"file":"kenneysprites-tinydungeon-tiles_16x16.png","version":1,"size":15251,"properties":{"frames":1,"fps":5}},{"file":"poster.png","version":1,"size":4678,"properties":{"frames":1,"fps":5}},{"file":"rogue_down.png","version":10,"size":675,"properties":{"frames":4,"fps":8}},{"file":"rogue_down_idle.png","version":1,"size":107601,"properties":{}},{"file":"rogue_down_idlee.png","version":1,"size":385,"properties":{}},{"file":"rogue_left.png","version":12,"size":734,"properties":{"frames":4,"fps":8}},{"file":"rogue_left_idle.png","version":1,"size":361,"properties":{}},{"file":"rogue_right.png","version":4,"size":738,"properties":{"frames":4,"fps":8}},{"file":"rogue_right_idle.png","version":1,"size":371,"properties":{}},{"file":"rogue_up.png","version":5,"size":613,"properties":{"frames":4,"fps":8}},{"file":"rogue_up_idle.png","version":1,"size":367,"properties":{}},{"file":"sprite.png","version":2,"size":190,"properties":{"frames":1,"fps":5}},{"file":"wall.png","version":1,"size":192,"properties":{}}],"assets":[],"maps":{},"sounds":[{"file":"coin.wav","version":1,"size":354894,"properties":{}},{"file":"explosion_sound.wav","version":1,"size":580718,"properties":{}}],"music":[]};
+</style><style>@font-face { font-family: "BitCell" ; src: url("fonts/BitCell.ttf") format("truetype"); }</style><script>window.fonts = ["BitCell"]</script></head><body class="noselect custom-cursor" oncontextmenu="return false;"><div id="canvaswrapper"></div><script type="text/javascript">var resources = {"images":[{"file":"coins-coin_bronze.png","version":7,"size":1221,"properties":{"frames":6,"fps":2}},{"file":"coins-coin_diamond.png","version":8,"size":1225,"properties":{"frames":6,"fps":7}},{"file":"coins-coin_gold.png","version":74,"size":1106,"properties":{"frames":6,"fps":10}},{"file":"coins-coin_silver.png","version":8,"size":1204,"properties":{"frames":6,"fps":7}},{"file":"effects-explosion.png","version":32,"size":95911,"properties":{"frames":35,"fps":38}},{"file":"gamepad3.png","version":1,"size":289,"properties":{}},{"file":"heart.png","version":27,"size":262,"properties":{"frames":1,"fps":5}},{"file":"heart_empty.png","version":12,"size":196,"properties":{"frames":1,"fps":17}},{"file":"icon.png","version":2,"size":386,"properties":{"frames":1,"fps":5}},{"file":"items-bomb.png","version":5,"size":198,"properties":{"frames":1,"fps":5}},{"file":"kenneysprites-tinydungeon-preview.png","version":1,"size":57318,"properties":{"frames":1,"fps":5}},{"file":"kenneysprites-tinydungeon-sample.png","version":1,"size":82851,"properties":{"frames":1,"fps":5}},{"file":"kenneysprites-tinydungeon-tiles_16x16.png","version":1,"size":15251,"properties":{"frames":1,"fps":5}},{"file":"poster.png","version":1,"size":4678,"properties":{"frames":1,"fps":5}},{"file":"rogue_down.png","version":10,"size":675,"properties":{"frames":4,"fps":8}},{"file":"rogue_down_idle.png","version":1,"size":107601,"properties":{}},{"file":"rogue_down_idlee.png","version":1,"size":385,"properties":{}},{"file":"rogue_left.png","version":12,"size":734,"properties":{"frames":4,"fps":8}},{"file":"rogue_left_idle.png","version":1,"size":361,"properties":{}},{"file":"rogue_right.png","version":4,"size":738,"properties":{"frames":4,"fps":8}},{"file":"rogue_right_idle.png","version":1,"size":371,"properties":{}},{"file":"rogue_up.png","version":5,"size":613,"properties":{"frames":4,"fps":8}},{"file":"rogue_up_idle.png","version":1,"size":367,"properties":{}},{"file":"sprite.png","version":2,"size":190,"properties":{"frames":1,"fps":5}},{"file":"wall.png","version":1,"size":192,"properties":{}}],"assets":[],"maps":{},"sounds":[{"file":"coin.wav","version":1,"size":354894,"properties":{}},{"file":"explosion_sound.wav","version":1,"size":580718,"properties":{}}],"music":[]};
 var graphics = "M1";
 
 </script><script type="text/javascript">var orientation = 'any' ;
@@ -365,23 +365,13 @@ update = function()
 end
 
 update_login = function()
-  // Tab wechselt zwischen Feldern
-  if keyboard.press.TAB then
+  // UP/DOWN wechselt zwischen Feldern
+  if keyboard.press.DOWN or keyboard.press.UP or keyboard.press.TAB then
     if auth_field == "user" then
       auth_field = "pass"
     else
       auth_field = "user"
     end
-  end
-
-  // Modus umschalten mit F1
-  if keyboard.press.F1 then
-    if auth_mode == "login" then
-      auth_mode = "register"
-    else
-      auth_mode = "login"
-    end
-    auth_error = ""
   end
 
   local letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -421,6 +411,16 @@ update_login = function()
       connection.send(object mtype="login" name=username password=auth_password end)
     else
       connection.send(object mtype="register" name=username password=auth_password end)
+    end
+    auth_error = ""
+  end
+
+  // Modus umschalten mit Shift
+  if keyboard.press.SHIFT then
+    if auth_mode == "login" then
+      auth_mode = "register"
+    else
+      auth_mode = "login"
     end
     auth_error = ""
   end
@@ -620,45 +620,33 @@ draw_login = function()
   end
 
   // Username Feld
-  local u_col = "#555"
-  local u_text_col = "#FFD700"
-  if auth_field == "user" then
-    u_col = "#333"
-    u_text_col = "#FFD700"
-  end
-  screen.drawText("Benutzername:", 0, 28, 10, "gray")
-  screen.fillRect(0, 15, 200, 22, u_col)
-  if auth_field == "user" then
-    screen.drawRect(0, 15, 200, 22, "#FFD700")
-  else
-    screen.drawRect(0, 15, 200, 22, "#555")
-  end
-  local u_display = username
+  local u_border = "#555"
+  if auth_field == "user" then u_border = "#FFD700" end
+  screen.drawText("Benutzername:", -60, 28, 10, "gray")
+  screen.fillRect(0, 15, 200, 22, "#222")
+  screen.drawRect(0, 15, 200, 22, u_border)
+  screen.drawText(username, 0, 15, 14, "#FFD700")
+  // Blinkender Cursor als Strich
   if auth_field == "user" and floor(timer / 20) % 2 == 0 then
-    u_display = u_display + "_"
+    local cx = username.length * 4.5
+    screen.fillRect(cx + 2, 15, 2, 12, "#FFD700")
   end
-  screen.drawText(u_display, 0, 15, 14, u_text_col)
 
   // Passwort Feld
-  local p_col = "#555"
-  if auth_field == "pass" then
-    p_col = "#333"
-  end
-  screen.drawText("Passwort:", 0, -2, 10, "gray")
-  screen.fillRect(0, -15, 200, 22, p_col)
-  if auth_field == "pass" then
-    screen.drawRect(0, -15, 200, 22, "#FFD700")
-  else
-    screen.drawRect(0, -15, 200, 22, "#555")
-  end
+  local p_border = "#555"
+  if auth_field == "pass" then p_border = "#FFD700" end
+  screen.drawText("Passwort:", -66, -2, 10, "gray")
+  screen.fillRect(0, -15, 200, 22, "#222")
+  screen.drawRect(0, -15, 200, 22, p_border)
   local p_display = ""
   for i = 0 to auth_password.length - 1
     p_display = p_display + "*"
   end
-  if auth_field == "pass" and floor(timer / 20) % 2 == 0 then
-    p_display = p_display + "_"
-  end
   screen.drawText(p_display, 0, -15, 14, "#FFD700")
+  if auth_field == "pass" and floor(timer / 20) % 2 == 0 then
+    local cx = auth_password.length * 4.5
+    screen.fillRect(cx + 2, -15, 2, 12, "#FFD700")
+  end
 
   // Fehlermeldung
   if auth_error != "" then
@@ -668,13 +656,12 @@ draw_login = function()
   // Aktionen
   if auth_mode == "login" then
     screen.drawText("[ENTER] Einloggen", 0, -55, 13, "lime")
-    screen.drawText("[F1] Zu Registrierung wechseln", 0, -72, 10, "gray")
+    screen.drawText("[SHIFT] Zu Registrierung wechseln", 0, -72, 10, "gray")
   else
     screen.drawText("[ENTER] Registrieren", 0, -55, 13, "lime")
-    screen.drawText("[F1] Zu Login wechseln", 0, -72, 10, "gray")
+    screen.drawText("[SHIFT] Zu Login wechseln", 0, -72, 10, "gray")
   end
-  screen.drawText("[TAB] Feld wechseln", 0, -85, 10, "gray")
-  screen.drawText("(A-Z 0-9)", 0, -96, 8, "#555")
+  screen.drawText("[Pfeiltasten] Feld wechseln", 0, -85, 10, "gray")
 end
 
 draw_pause = function()
