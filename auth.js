@@ -1,37 +1,57 @@
-const fs = require('fs');
-const crypto = require('crypto');
-const path = require('path');
+var mysql = require('mysql2');
+var crypto = require('crypto');
 
-const USERS_FILE = path.join(__dirname, 'users.json');
-
-function loadUsers() {
-  try {
-    return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-  } catch {
-    return {};
-  }
-}
-
-function saveUsers(users) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-}
-
-function hashPassword(password) {
-  var salt = crypto.randomBytes(16).toString('hex');
-  var hash = crypto.scryptSync(password, salt, 64).toString('hex');
-  return salt + ':' + hash;
-}
-
-function verifyPassword(password, stored) {
-  var parts = stored.split(':');
-  var salt = parts[0];
-  var hash = parts[1];
-  var test = crypto.scryptSync(password, salt, 64).toString('hex');
-  return hash === test;
-}
+var pool = null;
+var users = {};
 
 function generateToken() {
   return crypto.randomBytes(32).toString('hex');
+}
+
+function init(callback) {
+  pool = mysql.createPool({
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASS || '',
+    database: process.env.DB_NAME || 'msrogue',
+    waitForConnections: true,
+    connectionLimit: 5
+  });
+
+  pool.query(
+    'CREATE TABLE IF NOT EXISTS users (' +
+    'username VARCHAR(14) PRIMARY KEY, ' +
+    'password VARCHAR(100) NOT NULL, ' +
+    'token VARCHAR(64), ' +
+    'created BIGINT' +
+    ')',
+    function(err) {
+      if (err) {
+        console.error('DB Tabelle konnte nicht erstellt werden:', err.message);
+        callback(err);
+        return;
+      }
+      // Alle User in RAM laden
+      pool.query('SELECT * FROM users', function(err, rows) {
+        if (err) {
+          console.error('DB Laden fehlgeschlagen:', err.message);
+          callback(err);
+          return;
+        }
+        users = {};
+        for (var i = 0; i < rows.length; i++) {
+          users[rows[i].username] = {
+            username: rows[i].username,
+            password: rows[i].password,
+            token: rows[i].token,
+            created: rows[i].created
+          };
+        }
+        console.log('Auth: ' + Object.keys(users).length + ' Accounts geladen');
+        callback(null);
+      });
+    }
+  );
 }
 
 function register(username, password) {
@@ -42,12 +62,10 @@ function register(username, password) {
     return { success: false, error: "Nur A-Z und 0-9 erlaubt" };
   }
   if (!password || password.length < 3) {
-    return { success: false, error: "Passwort muss mind. 3 Zeichen haben" };
+    return { success: false, error: "Passwort mind. 3 Zeichen" };
   }
 
-  var users = loadUsers();
   var key = username.toUpperCase();
-
   if (users[key]) {
     return { success: false, error: "Name bereits vergeben" };
   }
@@ -55,34 +73,46 @@ function register(username, password) {
   var token = generateToken();
   users[key] = {
     username: key,
-    password: hashPassword(password),
+    password: password,
     token: token,
     created: Date.now()
   };
-  saveUsers(users);
+
+  // Async in DB schreiben
+  pool.query(
+    'INSERT INTO users (username, password, token, created) VALUES (?, ?, ?, ?)',
+    [key, password, token, users[key].created],
+    function(err) { if (err) console.error('DB Insert Fehler:', err.message); }
+  );
+
   return { success: true, token: token, username: key };
 }
 
 function login(username, password) {
-  var users = loadUsers();
   var key = username.toUpperCase();
 
   if (!users[key]) {
     return { success: false, error: "Benutzer nicht gefunden" };
   }
-  if (!verifyPassword(password, users[key].password)) {
+  if (users[key].password !== password) {
     return { success: false, error: "Falsches Passwort" };
   }
 
   var token = generateToken();
   users[key].token = token;
-  saveUsers(users);
-  return { success: true, token: token, username: users[key].username };
+
+  // Async Token updaten
+  pool.query(
+    'UPDATE users SET token = ? WHERE username = ?',
+    [token, key],
+    function(err) { if (err) console.error('DB Update Fehler:', err.message); }
+  );
+
+  return { success: true, token: token, username: key };
 }
 
 function validateToken(token) {
   if (!token) return { success: false };
-  var users = loadUsers();
   for (var key in users) {
     if (users[key].token === token) {
       return { success: true, username: users[key].username };
@@ -91,4 +121,9 @@ function validateToken(token) {
   return { success: false };
 }
 
-module.exports = { register: register, login: login, validateToken: validateToken };
+module.exports = {
+  init: init,
+  register: register,
+  login: login,
+  validateToken: validateToken
+};

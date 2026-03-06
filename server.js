@@ -8939,5 +8939,10 @@ fs.readFile("./config.json",(err,data)=> {
     console.info("could not read config file") ;
   }
   console.info( "starting with port set to: "+global.server_port ) ;
-  start() ;
+  auth.init(function(err) {
+    if (err) {
+      console.error("Auth DB Fehler - starte trotzdem:", err.message) ;
+    }
+    start() ;
+  }) ;
 }) ;
