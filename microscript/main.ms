@@ -285,6 +285,12 @@ update = function()
     end
   end
 
+  if keyboard.press.M then
+    if game_state == "play" and is_admin == 1 then
+      connection.send(object mtype="admin_double" end)
+    end
+  end
+
   if game_state == "shop" and keyboard.press.R then
     connection.send(object mtype="reset_save" end)
   end
@@ -429,9 +435,9 @@ update_game = function()
     rogue.im = "rogue_" + rogue.dir + "_idle" + sfx
   end
 
-  // Kollision mit Coins
-  local i = 0
-  for i = 0 to coins.length - 1
+  // Kollision mit Coins (rueckwaerts fuer sicheres removeAt)
+  local i = coins.length - 1
+  while i >= 0
     local c = coins[i]
     if c != 0 then
       local dist = sqrt((rogue.x - c.x)^2 + (rogue.y - c.y)^2)
@@ -446,30 +452,29 @@ update_game = function()
         pending_removal.push(c.id)
         connection.send(object mtype="bomb_hit" coin_id=c.id bx=c.x bomb_by=c.y end)
         coins.removeAt(i)
-        i = i - 1
 
       elsif not pending and c.item_type == "coin" and dist < 30 then
         pending_removal.push(c.id)
         connection.send(object mtype="collect" coin_id=c.id end)
         coins.removeAt(i)
-        i = i - 1
         play_sound("coin")
       end
     end
+    i = i - 1
   end
 
-  // Explosionen updaten
-  local j = 0
-  for j = 0 to explosions.length - 1
+  // Explosionen updaten (rueckwaerts)
+  local j = explosions.length - 1
+  while j >= 0
     local expl = explosions[j]
     if expl != 0 then
       expl.timer = expl.timer - 1
       expl.scale = expl.scale + 0.1
       if expl.timer <= 0 then
         explosions.removeAt(j)
-        j = j - 1
       end
     end
+    j = j - 1
   end
 end
 
@@ -710,7 +715,7 @@ draw_game = function()
   end
 
   if is_admin == 1 then
-    screen.drawText("ADMIN", 0, -screen.height/2 + 40, 12, "red")
+    screen.drawText("ADMIN [M] Score x2", 0, -screen.height/2 + 40, 10, "red")
   end
 
   if godmode == 1 then

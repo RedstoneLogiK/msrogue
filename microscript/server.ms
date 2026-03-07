@@ -368,6 +368,16 @@ serverUpdate = function()
           broadcast_all()
         end
 
+      elsif message.data.mtype == "admin_double" then
+        if players[pid] != 0 and players[pid] != null and players[pid].logged_in == 1 then
+          if players[pid].is_admin == 1 then
+            players[pid].score = players[pid].score * 2
+            save_player_to_db(pid)
+            send_player_data(message.connection, pid)
+            broadcast_all()
+          end
+        end
+
       elsif message.data.mtype == "reset_save" then
         if players[pid] != 0 and players[pid] != null and players[pid].logged_in == 1 then
           players[pid].score = 0
@@ -404,22 +414,24 @@ serverUpdate = function()
     end
   end
 
-  // Coins bewegen und entfernen
-  local i = 0
-  for i = 0 to coins.length - 1
+  // Coins bewegen und entfernen (rueckwaerts iterieren fuer sicheres removeAt)
+  local i = coins.length - 1
+  while i >= 0
     if coins[i] != 0 then
       coins[i].y = coins[i].y - coins[i].speed
       if coins[i].y < -120 then
         coins.removeAt(i)
-        i = i - 1
       end
     end
+    i = i - 1
   end
 
   // Spawn-Rate abhaengig von Spieleranzahl
   local pcount = player_count()
   local max_coins = 10 + pcount * 6
-  local spawn_rate = max(10, 40 - pcount * 5)
+  local raw_rate = 40 - pcount * 5
+  local spawn_rate = 10
+  if raw_rate > 10 then spawn_rate = raw_rate end
   coin_timer = coin_timer + 1
   if coin_timer >= spawn_rate and coins.length < max_coins then
     coin_timer = 0
