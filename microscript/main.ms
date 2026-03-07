@@ -45,6 +45,23 @@ auth_mode = "login"
 auth_error = ""
 auth_token = ""
 
+// Settings
+volume = 100
+skin = 1
+skin_names = []
+skin_colors = []
+settings_selection = 0
+
+play_sound = function(name)
+  audio.playSound(name, volume / 100, 1, 0, 0)
+end
+
+get_skin_color = function(s)
+  if s == 2 then return "rgba(80,160,255,0.35)" end
+  if s == 3 then return "rgba(255,80,40,0.35)" end
+  return 0
+end
+
 create_explosion = function(new_x, new_y)
   local expl = object
     x = new_x
@@ -70,6 +87,8 @@ apply_player_data = function(msg)
     rogue.x = msg.pos_x
     rogue.y = msg.pos_y
   end
+  if msg.volume != null then volume = msg.volume end
+  if msg.skin != null then skin = msg.skin end
 end
 
 init = function()
@@ -102,6 +121,11 @@ init = function()
   rogue.speed = 2.5
   cost_speed = 10
   cost_value = 15
+
+  // Skin Setup
+  skin_names = ["Classic", "Frost", "Blaze"]
+  skin_colors = ["rgba(0,0,0,0)", "rgba(80,160,255,0.35)", "rgba(255,80,40,0.35)"]
+  settings_selection = 0
 
   // Token aus Storage pruefen
   auth_token = storage.get("rogue_auth_token")
@@ -156,6 +180,7 @@ update = function()
             found.target_x = p.x
             found.target_y = p.y
             found.score = p.score
+            found.skin = p.skin
             new_others.push(found)
           else
             p.target_x = p.x
@@ -218,7 +243,7 @@ update = function()
 
     elsif message.mtype == "bomb" then
       create_explosion(message.bx, message.bomb_by)
-      audio.playSound("explosion_sound")
+      play_sound("explosion_sound")
       if message.victim == username then
         // Server hat Schaden schon berechnet, warte auf player_data
         if message.gameover then
@@ -234,6 +259,17 @@ update = function()
     elsif game_state == "pause" then
       game_state = "play"
     elsif game_state == "shop" then
+      game_state = "play"
+    elsif game_state == "settings" then
+      game_state = "play"
+    end
+  end
+
+  if keyboard.press.O then
+    if game_state == "play" then
+      settings_selection = 0
+      game_state = "settings"
+    elsif game_state == "settings" then
       game_state = "play"
     end
   end
@@ -254,6 +290,8 @@ update = function()
     update_game()
   elsif game_state == "shop" then
     update_shop()
+  elsif game_state == "settings" then
+    update_settings()
   elsif game_state == "gameover" then
     update_gameover()
   elsif game_state == "login" then
@@ -411,7 +449,7 @@ update_game = function()
         connection.send(object mtype="collect" coin_id=c.id end)
         coins.removeAt(i)
         i = i - 1
-        audio.playSound("coin")
+        play_sound("coin")
       end
     end
   end
@@ -449,6 +487,40 @@ update_shop = function()
   end
 end
 
+update_settings = function()
+  // Hoch/Runter zum Navigieren (0=Volume, 1=Skin)
+  if keyboard.press.W then
+    settings_selection = 0
+  end
+  if keyboard.press.S then
+    settings_selection = 1
+  end
+
+  if settings_selection == 0 then
+    // Volume aendern
+    if keyboard.press.A or keyboard.press.LEFT then
+      volume = max(0, volume - 10)
+      connection.send(object mtype="save_settings" volume=volume skin=skin end)
+    end
+    if keyboard.press.D or keyboard.press.RIGHT then
+      volume = min(100, volume + 10)
+      connection.send(object mtype="save_settings" volume=volume skin=skin end)
+    end
+  elsif settings_selection == 1 then
+    // Skin aendern
+    if keyboard.press.A or keyboard.press.LEFT then
+      skin = skin - 1
+      if skin < 1 then skin = 3 end
+      connection.send(object mtype="save_settings" volume=volume skin=skin end)
+    end
+    if keyboard.press.D or keyboard.press.RIGHT then
+      skin = skin + 1
+      if skin > 3 then skin = 1 end
+      connection.send(object mtype="save_settings" volume=volume skin=skin end)
+    end
+  end
+end
+
 draw = function()
   screen.clear("#670000")
 
@@ -460,6 +532,8 @@ draw = function()
     draw_game()
   elsif game_state == "shop" then
     draw_shop()
+  elsif game_state == "settings" then
+    draw_settings()
   elsif game_state == "gameover" then
     draw_gameover()
   elsif game_state == "pause" then
@@ -523,6 +597,40 @@ draw_login = function()
   screen.drawText("[TAB] Feld wechseln", 0, -85, 10, "gray")
 end
 
+draw_settings = function()
+  screen.fillRect(0, 0, screen.width, screen.height, "rgba(0,0,0,0.95)")
+  screen.drawText("--- SETTINGS ---", 0, 80, 30, "#FFD700")
+
+  // Volume
+  local v_col = "#555"
+  if settings_selection == 0 then v_col = "#FFD700" end
+  screen.drawText("Lautstaerke", 0, 40, 16, v_col)
+  // Volume Bar
+  screen.fillRect(0, 22, 160, 14, "#333")
+  screen.fillRect(-80 + (volume / 100) * 80, 22, (volume / 100) * 160, 14, v_col)
+  screen.drawRect(0, 22, 160, 14, v_col)
+  screen.drawText(volume + "%", 0, 22, 12, "white")
+
+  // Skin
+  local s_col = "#555"
+  if settings_selection == 1 then s_col = "#FFD700" end
+  screen.drawText("Skin", 0, -10, 16, s_col)
+
+  // Skin Vorschau
+  local sk_name = skin_names[skin - 1]
+  screen.drawText("< " + sk_name + " >", 0, -30, 14, s_col)
+
+  // Vorschau-Charakter
+  local sk_color = get_skin_color(skin)
+  if sk_color != 0 then
+    screen.fillCircle(0, -55, 20, sk_color)
+  end
+  screen.drawSprite("rogue_down_idle", 0, -55, 32, 32)
+
+  screen.drawText("[W/S] Auswahl  [A/D] Aendern", 0, -85, 10, "gray")
+  screen.drawText("[O] oder [ESC] Zurueck", 0, -96, 10, "gray")
+end
+
 draw_pause = function()
   draw_game()
   screen.fillRect(0, 0, screen.width, screen.height, "rgba(0,0,0,0.6)")
@@ -570,10 +678,18 @@ draw_game = function()
         op_im = op.last_dir + "_idle"
       end
     end
+    local op_skin_col = get_skin_color(op.skin)
+    if op_skin_col != 0 then
+      screen.fillCircle(op.x, op.y, 20, op_skin_col)
+    end
     screen.drawSprite(op_im, op.x, op.y, 32, 32)
     screen.drawText(op.name, op.x, op.y + 22, 8, "cyan")
   end
 
+  local my_skin_col = get_skin_color(skin)
+  if my_skin_col != 0 then
+    screen.fillCircle(rogue.x, rogue.y, 20, my_skin_col)
+  end
   screen.drawSprite(rogue.im, rogue.x, rogue.y, rogue.w, rogue.h)
   screen.drawText(username, rogue.x, rogue.y + 22, 8, "lime")
 
@@ -588,7 +704,7 @@ draw_game = function()
   end
 
   screen.drawText("SCORE: " + score, 0, screen.height/2 - 20, 20, "white")
-  screen.drawText("[B] SHOP / [ESC] PAUSE", 0, -screen.height/2 + 20, 15, "#FFD700")
+  screen.drawText("[B] SHOP / [O] SETTINGS / [ESC] PAUSE", 0, -screen.height/2 + 20, 12, "#FFD700")
 
   if totems > 0 then
     screen.drawText("TOTEMS: " + totems, screen.width/2 - 60, screen.height/2 - 20, 15, "gold")

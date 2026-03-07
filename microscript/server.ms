@@ -96,6 +96,8 @@ load_player_from_db = function(pid, username)
     players[pid].totems = data.totems
     players[pid].x = data.pos_x
     players[pid].y = data.pos_y
+    if data.volume != null then players[pid].volume = data.volume else players[pid].volume = 100 end
+    if data.skin != null then players[pid].skin = data.skin else players[pid].skin = 1 end
   end
 end
 
@@ -115,6 +117,8 @@ send_player_data = function(conn, pid)
     totems = p.totems
     pos_x = p.x
     pos_y = p.y
+    volume = p.volume
+    skin = p.skin
   end)
 end
 
@@ -129,6 +133,7 @@ broadcast_all = function()
         x = p.x
         y = p.y
         score = p.score
+        skin = p.skin
       end)
     end
   end
@@ -157,6 +162,8 @@ init_player = function(pid)
     godmode = 0
     godmode_timer = 0
     totems = 0
+    volume = 100
+    skin = 1
   end
 end
 
@@ -352,6 +359,19 @@ serverUpdate = function()
               send_player_data(message.connection, pid)
             end
           end
+        end
+
+      elsif message.data.mtype == "save_settings" then
+        if players[pid] != 0 and players[pid] != null and players[pid].logged_in == 1 then
+          if message.data.volume != null then
+            players[pid].volume = message.data.volume
+          end
+          if message.data.skin != null and message.data.skin >= 1 and message.data.skin <= 3 then
+            players[pid].skin = message.data.skin
+          end
+          save_player_to_db(pid)
+          send_player_data(message.connection, pid)
+          broadcast_all()
         end
 
       elsif message.data.mtype == "reset_save" then

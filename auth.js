@@ -47,7 +47,9 @@ function init(callback) {
     'godmode_timer INT DEFAULT 0, ' +
     'totems INT DEFAULT 0, ' +
     'pos_x FLOAT DEFAULT 0, ' +
-    'pos_y FLOAT DEFAULT 0' +
+    'pos_y FLOAT DEFAULT 0, ' +
+    'volume INT DEFAULT 100, ' +
+    'skin INT DEFAULT 1' +
     ')';
 
   pool.query(createSQL, function(err) {
@@ -62,7 +64,8 @@ function init(callback) {
       'cost_speed INT DEFAULT 10', 'cost_value INT DEFAULT 15',
       'lives INT DEFAULT 3', 'godmode INT DEFAULT 0',
       'godmode_timer INT DEFAULT 0', 'totems INT DEFAULT 0',
-      'pos_x FLOAT DEFAULT 0', 'pos_y FLOAT DEFAULT 0'];
+      'pos_x FLOAT DEFAULT 0', 'pos_y FLOAT DEFAULT 0',
+      'volume INT DEFAULT 100', 'skin INT DEFAULT 1'];
     var done = 0;
     for (var c = 0; c < cols.length; c++) {
       var colName = cols[c].split(' ')[0];
@@ -100,7 +103,9 @@ function loadAllUsers(callback) {
         godmode_timer: r.godmode_timer || 0,
         totems: r.totems || 0,
         pos_x: r.pos_x || 0,
-        pos_y: r.pos_y || 0
+        pos_y: r.pos_y || 0,
+        volume: (r.volume != null) ? r.volume : 100,
+        skin: r.skin || 1
       };
     }
     console.log('Auth: ' + Object.keys(users).length + ' Accounts geladen');
@@ -133,7 +138,7 @@ function register(username, password) {
     score: 0, speed_level: 1, value_multiplier: 1, rogue_speed: 2.5,
     cost_speed: 10, cost_value: 15, lives: 3,
     godmode: 0, godmode_timer: 0, totems: 0,
-    pos_x: 0, pos_y: 0
+    pos_x: 0, pos_y: 0, volume: 100, skin: 1
   };
 
   pool.query(
@@ -190,7 +195,9 @@ function getPlayerData(username) {
     godmode_timer: u.godmode_timer || 0,
     totems: u.totems || 0,
     pos_x: u.pos_x || 0,
-    pos_y: u.pos_y || 0
+    pos_y: u.pos_y || 0,
+    volume: (u.volume != null) ? u.volume : 100,
+    skin: u.skin || 1
   };
 }
 
@@ -210,14 +217,17 @@ function savePlayerData(username, data) {
   users[key].totems = data.totems;
   users[key].pos_x = data.pos_x || 0;
   users[key].pos_y = data.pos_y || 0;
+  if (data.volume != null) users[key].volume = data.volume;
+  if (data.skin != null) users[key].skin = data.skin;
 
   pool.query(
     'UPDATE users SET score=?, speed_level=?, value_multiplier=?, rogue_speed=?, ' +
     'cost_speed=?, cost_value=?, lives=?, godmode=?, godmode_timer=?, totems=?, ' +
-    'pos_x=?, pos_y=? WHERE username=?',
+    'pos_x=?, pos_y=?, volume=?, skin=? WHERE username=?',
     [data.score, data.speed_level, data.value_multiplier, data.rogue_speed,
      data.cost_speed, data.cost_value, data.lives, data.godmode,
-     data.godmode_timer, data.totems, data.pos_x || 0, data.pos_y || 0, key],
+     data.godmode_timer, data.totems, data.pos_x || 0, data.pos_y || 0,
+     (data.volume != null) ? data.volume : 100, data.skin || 1, key],
     function(err) { if (err) console.error('DB Save Fehler:', err.message); }
   );
 }
