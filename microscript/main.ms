@@ -20,6 +20,7 @@ value_multiplier = 1
 godmode = 0
 godmode_timer = 0
 totems = 0
+is_admin = 0
 
 cost_speed = 10
 cost_value = 15
@@ -89,6 +90,7 @@ apply_player_data = function(msg)
   end
   if msg.volume != null then volume = msg.volume end
   if msg.skin != null then skin = msg.skin end
+  if msg.is_admin != null then is_admin = msg.is_admin end
 end
 
 init = function()
@@ -118,6 +120,7 @@ init = function()
   godmode = 0
   godmode_timer = 0
   totems = 0
+  is_admin = 0
   rogue.speed = 2.5
   cost_speed = 10
   cost_value = 15
@@ -385,12 +388,12 @@ update_game = function()
     end
   end
 
-  if godmode == 1 and keyboard.G then
-    connection.send(object mtype="use_godmode" end)
-    // Timer wird server-seitig runtergezaehlt, client zeigt nur an
+  // Godmode Timer client-seitig runterzaehlen (nur Anzeige, Server hat Autoritaet)
+  if godmode == 1 then
     godmode_timer = godmode_timer - 1
     if godmode_timer <= 0 then
       godmode_timer = 0
+      godmode = 0
     end
   end
 
@@ -706,10 +709,13 @@ draw_game = function()
     screen.drawText("TOTEMS: " + totems, screen.width/2 - 60, screen.height/2 - 20, 15, "gold")
   end
 
+  if is_admin == 1 then
+    screen.drawText("ADMIN", 0, -screen.height/2 + 40, 12, "red")
+  end
+
   if godmode == 1 then
     local seconds = floor(godmode_timer / 60)
-    screen.drawText("GODMODE: " + seconds + "s", 0, -screen.height/2 + 40, 12, "cyan")
-    screen.drawText("(Halte G)", 0, -screen.height/2 + 30, 8, "white")
+    screen.drawText("GODMODE: " + seconds + "s", 0, -screen.height/2 + 55, 12, "cyan")
   end
 
   local panel_x = screen.width/2 - 55

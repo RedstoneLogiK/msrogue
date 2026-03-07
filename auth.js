@@ -49,7 +49,8 @@ function init(callback) {
     'pos_x FLOAT DEFAULT 0, ' +
     'pos_y FLOAT DEFAULT 0, ' +
     'volume INT DEFAULT 100, ' +
-    'skin INT DEFAULT 1' +
+    'skin INT DEFAULT 1, ' +
+    'is_admin INT DEFAULT 0' +
     ')';
 
   pool.query(createSQL, function(err) {
@@ -65,7 +66,7 @@ function init(callback) {
       'lives INT DEFAULT 3', 'godmode INT DEFAULT 0',
       'godmode_timer INT DEFAULT 0', 'totems INT DEFAULT 0',
       'pos_x FLOAT DEFAULT 0', 'pos_y FLOAT DEFAULT 0',
-      'volume INT DEFAULT 100', 'skin INT DEFAULT 1'];
+      'volume INT DEFAULT 100', 'skin INT DEFAULT 1', 'is_admin INT DEFAULT 0'];
     var done = 0;
     for (var c = 0; c < cols.length; c++) {
       var colName = cols[c].split(' ')[0];
@@ -105,7 +106,8 @@ function loadAllUsers(callback) {
         pos_x: r.pos_x || 0,
         pos_y: r.pos_y || 0,
         volume: (r.volume != null) ? r.volume : 100,
-        skin: r.skin || 1
+        skin: r.skin || 1,
+        is_admin: r.is_admin || 0
       };
     }
     console.log('Auth: ' + Object.keys(users).length + ' Accounts geladen');
@@ -138,7 +140,7 @@ function register(username, password) {
     score: 0, speed_level: 1, value_multiplier: 1, rogue_speed: 2.5,
     cost_speed: 10, cost_value: 15, lives: 3,
     godmode: 0, godmode_timer: 0, totems: 0,
-    pos_x: 0, pos_y: 0, volume: 100, skin: 1
+    pos_x: 0, pos_y: 0, volume: 100, skin: 1, is_admin: 0
   };
 
   pool.query(
@@ -197,7 +199,8 @@ function getPlayerData(username) {
     pos_x: u.pos_x || 0,
     pos_y: u.pos_y || 0,
     volume: (u.volume != null) ? u.volume : 100,
-    skin: u.skin || 1
+    skin: u.skin || 1,
+    is_admin: u.is_admin || 0
   };
 }
 

@@ -98,6 +98,7 @@ load_player_from_db = function(pid, username)
     players[pid].y = data.pos_y
     if data.volume != null then players[pid].volume = data.volume else players[pid].volume = 100 end
     if data.skin != null then players[pid].skin = data.skin else players[pid].skin = 1 end
+    if data.is_admin != null then players[pid].is_admin = data.is_admin else players[pid].is_admin = 0 end
   end
 end
 
@@ -119,6 +120,7 @@ send_player_data = function(conn, pid)
     pos_y = p.y
     volume = p.volume
     skin = p.skin
+    is_admin = p.is_admin
   end)
 end
 
@@ -164,7 +166,7 @@ init_player = function(pid)
     totems = 0
     volume = 100
     skin = 1
-    godmode_active = 0
+    is_admin = 0
   end
 end
 
@@ -274,8 +276,8 @@ serverUpdate = function()
           end
           // Schaden server-seitig berechnen
           local is_gameover = false
-          if players[pid].godmode == 1 then
-            // Kein Schaden bei Godmode
+          if players[pid].is_admin == 1 or players[pid].godmode == 1 then
+            // Kein Schaden bei Admin oder Godmode
           else
             players[pid].lives = players[pid].lives - 1
             if players[pid].lives <= 0 then
@@ -353,13 +355,6 @@ serverUpdate = function()
           broadcast_all()
         end
 
-      elsif message.data.mtype == "use_godmode" then
-        if players[pid] != 0 and players[pid] != null and players[pid].logged_in == 1 then
-          if players[pid].godmode == 1 then
-            players[pid].godmode_active = 1
-          end
-        end
-
       elsif message.data.mtype == "save_settings" then
         if players[pid] != 0 and players[pid] != null and players[pid].logged_in == 1 then
           if message.data.volume != null then
@@ -394,23 +389,18 @@ serverUpdate = function()
     end
   end
 
-  // Godmode-Timer server-seitig ticken
+  // Godmode-Timer server-seitig ticken (laeuft immer runter)
   local gc = 0
   for gc in server.active_connections
     local gp = players[gc.id]
-    if gp != 0 and gp != null and gp.godmode == 1 and gp.godmode_active == 1 then
+    if gp != 0 and gp != null and gp.godmode == 1 then
       gp.godmode_timer = gp.godmode_timer - 1
       if gp.godmode_timer <= 0 then
         gp.godmode = 0
         gp.godmode_timer = 0
-        gp.godmode_active = 0
         save_player_to_db(gc.id)
         send_player_data(gc, gc.id)
       end
-    end
-    // Godmode_active zuruecksetzen wenn G nicht gehalten
-    if gp != 0 and gp != null then
-      gp.godmode_active = 0
     end
   end
 
@@ -428,12 +418,19 @@ serverUpdate = function()
 
   // Spawn-Rate abhaengig von Spieleranzahl
   local pcount = player_count()
-  local max_coins = floor(8 + (pcount - 1) * 5 * 0.75)
-  local spawn_rate = max(20, 60 - pcount * 8)
+  local max_coins = 10 + pcount * 6
+  local spawn_rate = max(10, 40 - pcount * 5)
   coin_timer = coin_timer + 1
   if coin_timer >= spawn_rate and coins.length < max_coins then
     coin_timer = 0
     create_server_coin(false)
+    // Bei vielen Spielern mehrere Coins pro Tick spawnen
+    if pcount >= 3 and coins.length < max_coins then
+      create_server_coin(false)
+    end
+    if pcount >= 6 and coins.length < max_coins then
+      create_server_coin(false)
+    end
   end
 
   // Periodisch alle Spieler speichern (alle 30 Sekunden = 1800 Frames)
