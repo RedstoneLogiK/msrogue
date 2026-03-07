@@ -450,9 +450,9 @@ update_game = function()
 
   if godmode == 1 and keyboard.G then
     connection.send(object mtype="use_godmode" end)
+    // Timer wird server-seitig runtergezaehlt, client zeigt nur an
     godmode_timer = godmode_timer - 1
     if godmode_timer <= 0 then
-      godmode = 0
       godmode_timer = 0
     end
   end
@@ -1013,6 +1013,7 @@ init_player = function(pid)
     totems = 0
     volume = 100
     skin = 1
+    godmode_active = 0
   end
 end
 
@@ -1121,6 +1122,7 @@ serverUpdate = function()
             end
           end
           // Schaden server-seitig berechnen
+          local is_gameover = false
           if players[pid].godmode == 1 then
             // Kein Schaden bei Godmode
           else
@@ -1130,17 +1132,7 @@ serverUpdate = function()
                 players[pid].totems = players[pid].totems - 1
                 players[pid].lives = 3
               else
-                // Game Over - Reset
-                players[pid].score = 0
-                players[pid].speed_level = 1
-                players[pid].value_multiplier = 1
-                players[pid].rogue_speed = 2.5
-                players[pid].cost_speed = 10
-                players[pid].cost_value = 15
-                players[pid].lives = 3
-                players[pid].godmode = 0
-                players[pid].godmode_timer = 0
-                players[pid].totems = 0
+                is_gameover = true
               end
               save_player_to_db(pid)
             end
@@ -1148,9 +1140,22 @@ serverUpdate = function()
           // Explosion an ALLE senden
           local bc = 0
           for bc in server.active_connections
-            bc.send(object mtype="bomb" coin_id=coin_id bx=bomb_bx bomb_by=bomb_by victim=victim lives=players[pid].lives totems=players[pid].totems gameover=(players[pid].lives <= 0) end)
+            bc.send(object mtype="bomb" coin_id=coin_id bx=bomb_bx bomb_by=bomb_by victim=victim lives=players[pid].lives totems=players[pid].totems gameover=is_gameover end)
           end
-          // Aktuellen State an Opfer senden
+          // Bei Game Over resetten
+          if is_gameover then
+            players[pid].score = 0
+            players[pid].speed_level = 1
+            players[pid].value_multiplier = 1
+            players[pid].rogue_speed = 2.5
+            players[pid].cost_speed = 10
+            players[pid].cost_value = 15
+            players[pid].lives = 3
+            players[pid].godmode = 0
+            players[pid].godmode_timer = 0
+            players[pid].totems = 0
+            save_player_to_db(pid)
+          end
           send_player_data(message.connection, pid)
           broadcast_all()
         end
@@ -1200,13 +1205,7 @@ serverUpdate = function()
       elsif message.data.mtype == "use_godmode" then
         if players[pid] != 0 and players[pid] != null and players[pid].logged_in == 1 then
           if players[pid].godmode == 1 then
-            players[pid].godmode_timer = players[pid].godmode_timer - 1
-            if players[pid].godmode_timer <= 0 then
-              players[pid].godmode = 0
-              players[pid].godmode_timer = 0
-              save_player_to_db(pid)
-              send_player_data(message.connection, pid)
-            end
+            players[pid].godmode_active = 1
           end
         end
 
@@ -1241,6 +1240,26 @@ serverUpdate = function()
         end
 
       end
+    end
+  end
+
+  // Godmode-Timer server-seitig ticken
+  local gc = 0
+  for gc in server.active_connections
+    local gp = players[gc.id]
+    if gp != 0 and gp != null and gp.godmode == 1 and gp.godmode_active == 1 then
+      gp.godmode_timer = gp.godmode_timer - 1
+      if gp.godmode_timer <= 0 then
+        gp.godmode = 0
+        gp.godmode_timer = 0
+        gp.godmode_active = 0
+        save_player_to_db(gc.id)
+        send_player_data(gc, gc.id)
+      end
+    end
+    // Godmode_active zuruecksetzen wenn G nicht gehalten
+    if gp != 0 and gp != null then
+      gp.godmode_active = 0
     end
   end
 

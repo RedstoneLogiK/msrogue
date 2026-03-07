@@ -387,9 +387,9 @@ update_game = function()
 
   if godmode == 1 and keyboard.G then
     connection.send(object mtype="use_godmode" end)
+    // Timer wird server-seitig runtergezaehlt, client zeigt nur an
     godmode_timer = godmode_timer - 1
     if godmode_timer <= 0 then
-      godmode = 0
       godmode_timer = 0
     end
   end
